@@ -1,0 +1,20 @@
+#! /bin/sh
+quit() {
+   echo $@
+   exit 1  
+}
+PACKAGE=pynetsnmp
+VERSION=0.1
+VPACKAGE=$PACKAGE-$VERSION
+SVN=http://dev.zenoss.org/svn
+SVNTRUNK=$SVN/trunk/$PACKAGE
+SVNTAG=$SVN/tags/$VPACKAGE
+svn cp -m"making release $VERSION" $SVNTRUNK $SVNTAG || quit cannot create tag
+svn export $SVNTAG /tmp/$VPACKAGE || quit cannot create export tree
+ZENOSSINST=/home/$USER/work/zenoss/inst
+( 
+  cd /tmp
+  tar -czvf $ZENOSSINST/externallibs/$VPACKAGE.tar.gz $VPACKAGE
+  rm -rf $VPACKAGE
+) || quit cannot create tarball
+exit 0
