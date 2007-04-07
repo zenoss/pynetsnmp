@@ -171,11 +171,13 @@ class AgentProxy:
     def get(self, oids, timeout=None, retryCount=None):
         d = defer.Deferred()
         self.defers[self.session.get(translateOids(oids))] = d
+        updateReactor()
         return d
 
     def walk(self, oid, timeout=None, retryCount=None):
         d = defer.Deferred()
         self.defers[self.session.walk(translateOid(oid))] = d
+        updateReactor()
         return d
 
     def getbulk(self, nonrepeaters, maxrepititions, oids):
@@ -183,11 +185,13 @@ class AgentProxy:
         self.defers[self.session.getbulk(nonrepeaters,
                                          maxrepititions,
                                          translateOids(oids))] = d
+        updateReactor()
         return d
 
     def getTable(self, oids, timeout, retryCount, maxRepetitions):
         from tableretriever import TableRetriever
         t = TableRetriever(self, oids, timeout, retryCount, maxRepetitions)
+        updateReactor()
         return t()
 
 class _FakeProtocol:
