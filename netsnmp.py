@@ -35,7 +35,7 @@ netsnmp_callback = CFUNCTYPE(c_int,
                              c_void_p)
 
 version = cast(lib.netsnmp_get_version(), c_char_p).value
-float_version = float(version.rsplit('.', 1)[0])
+float_version = float('.'.join(version.split('.')[:-1]))
 if float_version < 5.2:
     localname = []
 else:
@@ -361,6 +361,17 @@ class Session(object):
             lib.snmp_free_pdu(req)
             raise SnmpError("snmp_send")
         return req.contents.reqid
+
+    def pdu_parse(self, pdu, buffer):
+        cbuff = create_string_buffer(buffer, len(buffer))
+        length = c_size_t(len(buffer))
+        after_header = c_char_p()
+        if lib.snmpv3_parse(byref(pdu),
+                            cbuff,
+                            byref(length),
+                            byref(after_header),
+                            self.sess):
+            raise SnmpError("pdu_parse")
 
 MAXFD = 1024
 fdset = c_long * (MAXFD/32)
