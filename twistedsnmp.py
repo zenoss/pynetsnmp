@@ -170,27 +170,39 @@ class AgentProxy:
 
     def get(self, oids, timeout=None, retryCount=None):
         d = defer.Deferred()
-        self.defers[self.session.get(translateOids(oids))] = d
+        try:
+            self.defers[self.session.get(translateOids(oids))] = d
+        except Exception, ex:
+            return defer.fail(ex)
         updateReactor()
         return d
 
     def walk(self, oid, timeout=None, retryCount=None):
         d = defer.Deferred()
-        self.defers[self.session.walk(translateOid(oid))] = d
+        try:
+            self.defers[self.session.walk(translateOid(oid))] = d
+        except Exception, ex:
+            return defer.fail(ex)
         updateReactor()
         return d
 
     def getbulk(self, nonrepeaters, maxrepititions, oids):
         d = defer.Deferred()
-        self.defers[self.session.getbulk(nonrepeaters,
-                                         maxrepititions,
-                                         translateOids(oids))] = d
+        try:
+            self.defers[self.session.getbulk(nonrepeaters,
+                                             maxrepititions,
+                                             translateOids(oids))] = d
+        except Exception, ex:
+            return defer.fail(ex)
         updateReactor()
         return d
 
     def getTable(self, oids, timeout, retryCount, maxRepetitions):
         from tableretriever import TableRetriever
-        t = TableRetriever(self, oids, timeout, retryCount, maxRepetitions)
+        try:
+            t = TableRetriever(self, oids, timeout, retryCount, maxRepetitions)
+        except Exception, ex:
+            return defer.fail(ex)
         updateReactor()
         return t()
 
