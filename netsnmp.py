@@ -36,10 +36,12 @@ netsnmp_callback = CFUNCTYPE(c_int,
 
 version = cast(lib.netsnmp_get_version(), c_char_p).value
 float_version = float('.'.join(version.split('.')[:-1]))
-if float_version < 5.2:
-    localname = []
-else:
+localname = []
+paramName = []
+if float_version > 5.199:
     localname = [('localname', c_char_p)]
+    if float_version > 5.299:
+        paramName = [('paramName', c_char_p)]
 
 netsnmp_session._fields_ = [
         ('version', c_long),
@@ -73,6 +75,7 @@ netsnmp_session._fields_ = [
         ('securityEngineIDLen', size_t),
         ('securityName', c_char_p),
         ('securityNameLen', size_t),
+        
         ('securityAuthProto', POINTER(oid)),
         ('securityAuthProtoLen', size_t),
         ('securityAuthKey', u_char * USM_AUTH_KU_LEN),
@@ -86,6 +89,8 @@ netsnmp_session._fields_ = [
         ('securityPrivKeyLen', c_size_t),
         ('securityPrivLocalKey', c_char_p),
         ('securityPrivLocalKeyLen', c_size_t),
+
+        ] + paramName + [
 
         ('securityModel', c_int),
         ('securityLevel', c_int),
