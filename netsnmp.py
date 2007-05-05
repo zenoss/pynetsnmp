@@ -35,7 +35,7 @@ netsnmp_callback = CFUNCTYPE(c_int,
                              c_void_p)
 
 version = cast(lib.netsnmp_get_version(), c_char_p).value
-float_version = float('.'.join(version.split('.')[:-1]))
+float_version = float('.'.join(version.split('.')[:2]))
 localname = []
 paramName = []
 if float_version > 5.199:
