@@ -7,6 +7,8 @@ from twisted.internet.interfaces import IReadDescriptor
 from twisted.python import failure
 from twisted.internet import defer
 
+from sets import Set
+
 import logging
 log = logging.getLogger('twistedsnmp')
 
@@ -73,8 +75,8 @@ def updateReactor():
             reader = SnmpReader(fd)
             fdMap[fd] = reader
             reactor.addReader(reader)
-    current = set(fdMap.keys())
-    need = set(fds)
+    current = Set(fdMap.keys())
+    need = Set(fds)
     doomed = current - need
     for d in doomed:
         reactor.removeReader(fdMap[d])
