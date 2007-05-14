@@ -33,6 +33,7 @@ class Walker(netsnmp.Session):
         self.stop("Timeout")
 
     def start(self):
+        self.open()
         self.defer = defer.Deferred()
         self.results = []
         self.walk((1,))
@@ -65,4 +66,6 @@ def main():
     reactor.run()
 
 if __name__ == '__main__':
+    import logging
+    logging.basicConfig()
     main()

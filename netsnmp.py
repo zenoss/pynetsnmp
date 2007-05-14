@@ -275,12 +275,12 @@ def getResult(pdu):
 class SnmpError(Exception):
 
     def __init__(self, why):
-        lib.snmp_perror(why)        
+        lib.snmp_perror(why)
         Exception.__init__(self, why)
 
 sessionMap = {}
 def _callback(operation, sp, reqid, pdu, magic):
-    sess = sessionMap[sp]
+    sess = sessionMap[sp.contents.sessid]
     try:
         if operation == NETSNMP_CALLBACK_OP_RECEIVED_MESSAGE:
             sess.callback(pdu.contents)
@@ -309,13 +309,13 @@ class Session(object):
         sess.callback_magic = id(self)
         sess = lib.snmp_open(byref(sess))
         self.sess = sess # cast(sess, POINTER(netsnmp_session))
-        if not self.sess:
+        if self.sess:
             raise SnmpError('snmp_open')
-        sessionMap[sess] = self
+        sessionMap[sess.contents.sessid] = self
 
     def close(self):
         assert lib.snmp_close(self.sess) == 1
-        del sessionMap[self.sess]
+        del sessionMap[self.sess.contents.sessid]
 
     def callback(self, pdu):
         pass

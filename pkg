@@ -4,7 +4,7 @@ quit() {
    exit 1  
 }
 PACKAGE=pynetsnmp
-VERSION=0.22
+VERSION=0.23
 VPACKAGE=$PACKAGE-$VERSION
 SVN=http://dev.zenoss.org/svn
 SVNTRUNK=$SVN/trunk/$PACKAGE
