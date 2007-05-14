@@ -18,7 +18,7 @@ class Getter(netsnmp.Session):
 
 def main():
     name = 'localhost'
-    community = '&*Gopher$'
+    community = 'public'
     if len(sys.argv) >= 2:
         name = sys.argv[1]
     oids = sys.argv[2:]

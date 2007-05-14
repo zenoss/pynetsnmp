@@ -16,6 +16,7 @@ except Exception:
     warnings.warn("Unable to load crypto library")
 
 lib = CDLL(find_library('netsnmp'))
+lib.netsnmp_get_version.restype = c_char_p
 
 oid = c_long
 u_long = c_ulong
@@ -30,11 +31,11 @@ class netsnmp_pdu(Structure): pass
 
 # int (*netsnmp_callback) (int, netsnmp_session *, int, netsnmp_pdu *, void *);
 netsnmp_callback = CFUNCTYPE(c_int,
-                             c_int, c_int, # POINTER(netsnmp_session),
+                             c_int, POINTER(netsnmp_session),
                              c_int, POINTER(netsnmp_pdu),
                              c_void_p)
 
-version = cast(lib.netsnmp_get_version(), c_char_p).value
+version = lib.netsnmp_get_version()
 float_version = float('.'.join(version.split('.')[:2]))
 localname = []
 paramName = []
@@ -209,6 +210,8 @@ lib.snmp_register_callback(SNMP_CALLBACK_LIBRARY,
                            netsnmp_logger,
                            0)
 lib.netsnmp_register_loghandler(NETSNMP_LOGHANDLER_CALLBACK, LOG_DEBUG)
+lib.snmp_pdu_create.restype = netsnmp_pdu_p
+lib.snmp_open.restype = POINTER(netsnmp_session)
 
 class UnknownType(Exception):
     pass
@@ -321,7 +324,7 @@ class Session(object):
         pass
 
     def _create_request(self, packetType):
-        return cast(lib.snmp_pdu_create(packetType), netsnmp_pdu_p)
+        return lib.snmp_pdu_create(packetType)
 
     def sget(self, oids):
         req = self._create_request(SNMP_MSG_GET)

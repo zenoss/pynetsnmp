@@ -1,4 +1,5 @@
 import re
+import os
 
 def process(f, output):
     lines = open('/usr/include/net-snmp/library/%s.h' % f).readlines()
