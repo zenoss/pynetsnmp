@@ -39,6 +39,8 @@ version = lib.netsnmp_get_version()
 float_version = float('.'.join(version.split('.')[:2]))
 localname = []
 paramName = []
+if float_version < 5.099:
+    raise ImportError("netsnmp version 5.1 or greater is required")
 if float_version > 5.199:
     localname = [('localname', c_char_p)]
     if float_version > 5.299:
@@ -309,7 +311,7 @@ class Session(object):
         sess.callback_magic = id(self)
         sess = lib.snmp_open(byref(sess))
         self.sess = sess # cast(sess, POINTER(netsnmp_session))
-        if self.sess:
+        if not self.sess:
             raise SnmpError('snmp_open')
         sessionMap[sess.contents.sessid] = self
 
