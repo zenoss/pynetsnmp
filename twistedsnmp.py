@@ -153,7 +153,7 @@ class AgentProxy:
         version = VERSION_MAP.get(self.snmpVersion)
         self.ip, version
         assert self.session is None
-        self.session = netsnmp.Session(peername=self.ip,
+        self.session = netsnmp.Session(peername='%s:%d' % (self.ip, self.port),
                                        community=self.community,
                                        community_len=len(self.community),
                                        version=version,
