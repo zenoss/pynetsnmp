@@ -22,12 +22,13 @@ class build(_build):
             genconstants.make_imports()
             _build.run(self)
 
-setup(name='pynetsnmp',
-      version=VERSION,
-      description='ctypes wrapper for net-snmp',
-      author='Eric C. Newton',
-      author_email='ecn@zenoss.com',
-      cmdclass={'build': build, 'clean' : clean},
-      package_dir = {'pynetsnmp':'.',},
-      packages = ['pynetsnmp',],
-      )
+if __name__=='__main__':
+    setup(name='pynetsnmp',
+          version=VERSION,
+          description='ctypes wrapper for net-snmp',
+          author='Eric C. Newton',
+          author_email='ecn@zenoss.com',
+          cmdclass={'build': build, 'clean' : clean},
+          package_dir = {'pynetsnmp':'.',},
+          packages = ['pynetsnmp',],
+          )
