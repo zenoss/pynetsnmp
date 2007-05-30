@@ -6,6 +6,8 @@ import os
 
 import genconstants
 
+VERSION='0.26.1'
+
 class clean(_clean):
     def run(self):
         if os.path.exists('/usr/include/net-snmp/library/snmp_api.h'):
@@ -21,6 +23,7 @@ class build(_build):
             _build.run(self)
 
 setup(name='pynetsnmp',
+      version=VERSION,
       description='ctypes wrapper for net-snmp',
       author='Eric C. Newton',
       author_email='ecn@zenoss.com',
