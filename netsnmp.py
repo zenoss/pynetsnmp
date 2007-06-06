@@ -1,7 +1,16 @@
+import os
 from ctypes import *
-from ctypes.util import find_library
+from ctypes.util import find_library as find_library_orig
 from CONSTANTS import *
 
+# freebsd cannot manage a decent find_library
+def find_library(name):
+    for name in ['/usr/lib/lib%s.so' % name,
+                 '/usr/local/lib/lib%s.so' % name]:
+        if os.path.exists(name):
+            return name
+    return find_library_orig(name)
+    
 import logging
 log = logging.getLogger('netsnmp')
 
