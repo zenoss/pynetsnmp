@@ -152,7 +152,9 @@ class AgentProxy:
     def open(self):
         version = VERSION_MAP.get(self.snmpVersion)
         self.ip, version
-        assert self.session is None
+        if self.session is not None:
+            self.session.close()
+            self.session = None
         self.session = netsnmp.Session(peername='%s:%d' % (self.ip, self.port),
                                        community=self.community,
                                        community_len=len(self.community),
