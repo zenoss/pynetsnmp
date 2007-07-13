@@ -328,7 +328,13 @@ class Session(object):
         sessionMap[sess.contents.sessid] = self
 
     def close(self):
-        assert lib.snmp_close(self.sess) == 1
+        if not self.sess.contents.sessid in sessionMap:
+            log.warn("Unable to find session id %r in sessionMap",
+                     self.sess.conents.sessid)
+            log.warn("This could mean the session is corrupt or doubly closed",
+                     self.sess.conents.sessid)
+            return
+        lib.snmp_close(self.sess)
         del sessionMap[self.sess.contents.sessid]
 
     def callback(self, pdu):
