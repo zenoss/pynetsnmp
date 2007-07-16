@@ -328,7 +328,8 @@ class Session(object):
         sessionMap[sess.contents.sessid] = self
 
     def close(self):
-        if not self.sess.contents.sessid in sessionMap:
+        if not self.sess: return
+        if self.sess.contents.sessid not in sessionMap:
             log.warn("Unable to find session id %r in sessionMap",
                      self.sess.conents.sessid)
             log.warn("This could mean the session is corrupt or doubly closed",

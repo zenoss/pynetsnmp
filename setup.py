@@ -6,7 +6,7 @@ import os
 
 import genconstants
 
-VERSION='0.26.5'
+VERSION='0.26.6'
 
 class clean(_clean):
     def run(self):
