@@ -10,11 +10,18 @@ class SnmpSession(object):
         self.timeout = timeout
         self.port = port
         self.community = "public"
+        self._version = netsnmp.SNMP_VERSION_1
+
+    def setVersion(self, version):
+        if version.find('2') >= 0:
+            self._version = netsnmp.SNMP_VERSION_2c
+        else:
+            self._version = netsnmp.SNMP_VERSION_1
 
     def get(self, oid):
         "Synchronous get implementation"
         self.session = netsnmp.Session(
-            version=netsnmp.SNMP_VERSION_1,
+            version=self._version,
             timeout=int(self.timeout*1e6),
             peername= '%s:%d' % (self.ip, self.port),
             community=self.community,
