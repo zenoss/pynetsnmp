@@ -5,10 +5,11 @@ from ctypes import *
 
 class SnmpSession(object):
     
-    def __init__(self, ip, timeout, port):
+    def __init__(self, ip, port=161, timeout=2, retries=2):
         self.ip = ip
-        self.timeout = timeout
         self.port = port
+        self.timeout = timeout
+        self.retries = retries
         self.community = "public"
         self._version = netsnmp.SNMP_VERSION_1
 
@@ -23,6 +24,7 @@ class SnmpSession(object):
         self.session = netsnmp.Session(
             version=self._version,
             timeout=int(self.timeout*1e6),
+            retries=int(self.retries-1),
             peername= '%s:%d' % (self.ip, self.port),
             community=self.community,
             community_len=len(self.community)
