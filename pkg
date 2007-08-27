@@ -26,9 +26,10 @@ SVNTRUNK=$SVN/trunk/$PACKAGE
 SVNTAG=$SVN/tags/$VPACKAGE
 svn cp -m"making release $VERSION" $SVNTRUNK $SVNTAG || quit cannot create tag
 svn export $SVNTAG /tmp/$VPACKAGE || quit cannot create export tree
+OLD=`pwd`
 ( 
   cd /tmp
-  tar -czvf ../$VPACKAGE.tar.gz $VPACKAGE
+  tar -czvf $OLD/../$VPACKAGE.tar.gz $VPACKAGE
   rm -rf $VPACKAGE
 ) || quit cannot create tarball
 echo "Remember to move ../$VPACKAGE.tar.gz the Zenoss "
