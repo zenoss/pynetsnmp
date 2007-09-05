@@ -294,7 +294,7 @@ class SnmpError(Exception):
 
 sessionMap = {}
 def _callback(operation, sp, reqid, pdu, magic):
-    sess = sessionMap[sp.contents.sessid]
+    sess = sessionMap[magic]
     try:
         if operation == NETSNMP_CALLBACK_OP_RECEIVED_MESSAGE:
             sess.callback(pdu.contents)
@@ -313,6 +313,7 @@ class Session(object):
 
     def __init__(self, **kw):
         self.kw = kw
+        self.sess = None
 
     def open(self):
         sess = netsnmp_session()
@@ -325,18 +326,15 @@ class Session(object):
         self.sess = sess # cast(sess, POINTER(netsnmp_session))
         if not self.sess:
             raise SnmpError('snmp_open')
-        sessionMap[sess.contents.sessid] = self
+        sessionMap[id(sess)] = self
 
     def close(self):
         if not self.sess: return
-        if self.sess.contents.sessid not in sessionMap:
-            log.warn("Unable to find session id %r in sessionMap",
-                     self.sess.conents.sessid)
-            log.warn("This could mean the session is corrupt or doubly closed",
-                     self.sess.conents.sessid)
+        if id(self) not in sessionMap:
+            log.warn("Unable to find session id %r in sessionMap", self.kw)
             return
         lib.snmp_close(self.sess)
-        del sessionMap[self.sess.contents.sessid]
+        del sessionMap[id(self)]
 
     def callback(self, pdu):
         pass
