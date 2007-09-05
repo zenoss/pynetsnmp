@@ -326,7 +326,7 @@ class Session(object):
         self.sess = sess # cast(sess, POINTER(netsnmp_session))
         if not self.sess:
             raise SnmpError('snmp_open')
-        sessionMap[id(sess)] = self
+        sessionMap[id(self)] = self
 
     def close(self):
         if not self.sess: return
