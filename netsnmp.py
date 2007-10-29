@@ -47,6 +47,9 @@ netsnmp_callback = CFUNCTYPE(c_int,
                              c_int, POINTER(netsnmp_pdu),
                              c_void_p)
 
+# int (*proc)(int, char * const *, int)
+arg_parse_proc = CFUNCTYPE(c_int, POINTER(c_char_p), c_int);
+
 version = lib.netsnmp_get_version()
 float_version = float('.'.join(version.split('.')[:2]))
 localname = []
@@ -216,7 +219,7 @@ PRIORITY_MAP = {
 def netsnmp_logger(a, b, msg):
     msg = cast(msg, netsnmp_log_message_p)
     priority = PRIORITY_MAP.get(msg.contents.priority, logging.WARNING)
-    log.log(priority, msg.contents.msg)
+    log.log(priority, str(msg.contents.msg).strip())
     return 0
 netsnmp_logger = log_callback(netsnmp_logger)
 lib.snmp_register_callback(SNMP_CALLBACK_LIBRARY,
@@ -307,19 +310,57 @@ def _callback(operation, sp, reqid, pdu, magic):
     return 1
 _callback = netsnmp_callback(_callback)
 
+class ArgumentParseError(Exception):
+    pass
+
+def _doNothingProc(argc, argv, arg):
+    return 0
+_doNothingProc = arg_parse_proc(_doNothingProc)
+
+def parse_args(args, session):
+    import sys
+    args = [sys.argv[0],] + args
+    argc = len(args)
+    argv = (c_char_p * argc)()
+    for i in range(argc):
+        # snmp_parse_args mutates argv, so create a copy
+        argv[i] = create_string_buffer(args[i]).raw
+    if lib.snmp_parse_args(argc, argv, session, '', _doNothingProc) < 0:
+        def toList(args):
+            return [str(x) for x in args]
+        raise ArgumentParseError("Unable to parse arguments", toList(argv))
+
+def initialize_session(sess, cmdLineArgs, kw):
+    kw = kw.copy()
+    if cmdLineArgs:
+        cmdLine = [x for x in cmdLineArgs]
+        if type(cmdLine[0]) == type(()):
+            result = []
+            for opt, val in cmdLine:
+                result.append(opt)
+                result.append(val)
+            cmdLine = result
+        if kw.get('peername'):
+            cmdLine.append(kw['peername'])
+            del kw['peername']
+        parse_args(cmdLine, byref(sess))
+    for attr, value in kw.items():
+        setattr(sess, attr, value)
+    
+
 class Session(object):
 
     cb = None
 
-    def __init__(self, **kw):
+    def __init__(self, cmdLineArgs = (), **kw):
+        self.cmdLineArgs = cmdLineArgs
         self.kw = kw
         self.sess = None
 
     def open(self):
         sess = netsnmp_session()
         lib.snmp_sess_init(byref(sess))
-        for attr, value in self.kw.items():
-            setattr(sess, attr, value)
+        initialize_session(sess, self.cmdLineArgs, self.kw)
         sess.callback = _callback
         sess.callback_magic = id(self)
         sess = lib.snmp_open(byref(sess))

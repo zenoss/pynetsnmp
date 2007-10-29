@@ -150,7 +150,7 @@ class AgentProxy:
         reactor.callLater(0, d.errback, failure.Failure(TimeoutError()))
 
     def open(self):
-        version = VERSION_MAP.get(self.snmpVersion)
+        version = VERSION_MAP.get(str(self.snmpVersion))
         self.ip, version
         if self.session is not None:
             self.session.close()

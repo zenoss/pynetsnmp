@@ -50,17 +50,15 @@ def stop(results):
         reactor.stop()
 
 def main():
-    name = 'localhost'
-    community = 'public'
-    names = sys.argv[1:]
-    if not names:
-        names = ['localhost']
-    d = defer.DeferredList([
-        Walker(version = netsnmp.SNMP_VERSION_1,
-               peername = name,
-               community = community,
-               community_len = len(community)).start()
-        for name in names], consumeErrors=True)
+    import getopt
+    # from snmp_parse_args.c
+    opts = 'Y:VhHm:M:O:I:P:D:dv:r:t:c:Z:e:E:n:u:l:x:X:a:A:p:T:-:3:s:S:L:'
+    args, hosts = getopt.getopt(sys.argv[1:], opts)
+    if not hosts:
+        hosts = ['localhost']
+    d = defer.DeferredList(
+        [Walker(peername=host, cmdLineArgs=args).start() for host in hosts],
+        consumeErrors=True)
     d.addBoth(stop)
     twistedsnmp.updateReactor()
     reactor.run()

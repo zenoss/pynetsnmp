@@ -26,7 +26,7 @@ def main():
                peername = name,
                community = community,
                community_len = len(community))
-    oids = [tuple(map(int, oid.split('.'))) for oid in oids]
+    oids = [tuple(map(int, oid.strip('.').split('.'))) for oid in oids]
     g.open()
     g.get(oids)
     twistedsnmp.updateReactor()

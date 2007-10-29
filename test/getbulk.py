@@ -1,4 +1,5 @@
 import netsnmp
+import twistedsnmp
 import sys
 
 from twisted.internet import reactor
@@ -44,9 +45,12 @@ def main():
               peername = name,
               community = community,
               community_len = len(community))
+    t.open()
     t.getTable(oid)
-    netsnmp.updateReactor()
+    twistedsnmp.updateReactor()
     reactor.run()
 
 if __name__ == '__main__':
+    import logging
+    logging.basicConfig()
     main()
