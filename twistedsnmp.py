@@ -87,17 +87,6 @@ def updateReactor():
     if t is not None:
         timer.callLater = reactor.callLater(t, checkTimeouts)
 
-VERSION_MAP = {
-    'v1': netsnmp.SNMP_VERSION_1,
-    '1': netsnmp.SNMP_VERSION_1,
-    'v2': netsnmp.SNMP_VERSION_2c,
-    'v2c': netsnmp.SNMP_VERSION_2c,
-    '2': netsnmp.SNMP_VERSION_2c,
-    '2c': netsnmp.SNMP_VERSION_2c,
-    'v3': netsnmp.SNMP_VERSION_3,
-    '3': netsnmp.SNMP_VERSION_3,
-    }
-
 class SnmpError(Exception): pass
 class SnmpNameError(Exception):
     def __init__(self, oid):
@@ -119,13 +108,15 @@ class AgentProxy:
                  protocol=None,
                  allowCache = False,
                  timeout = 1.5,
-                 tries = 3):
+                 tries = 3,
+                 cmdLineArgs = ()):
         self.ip = ip
         self.port = port
         self.community = community
         self.snmpVersion = snmpVersion
         self.timeout = timeout
         self.tries = tries
+        self.cmdLineArgs = cmdLineArgs
         self.defers = {}
         self.session = None
 
@@ -150,17 +141,18 @@ class AgentProxy:
         reactor.callLater(0, d.errback, failure.Failure(TimeoutError()))
 
     def open(self):
-        version = VERSION_MAP.get(str(self.snmpVersion))
-        self.ip, version
+        version = str(self.snmpVersion).lstrip('v')
+        if version == '2':
+            version += 'c'
         if self.session is not None:
             self.session.close()
             self.session = None
-        self.session = netsnmp.Session(peername='%s:%d' % (self.ip, self.port),
-                                       community=self.community,
-                                       community_len=len(self.community),
-                                       version=version,
-                                       timeout=int(self.timeout*1e6),
-                                       retries=self.tries)
+        cmdLineArgs = list(self.cmdLineArgs) + ['-v', str(version),
+                                                '-c', self.community,
+                                                '-t', str(self.timeout),
+                                                '-r', str(self.tries),
+                                                '%s:%d' % (self.ip, self.port)]
+        self.session = netsnmp.Session(cmdLineArgs=cmdLineArgs)
         self.session.callback = self.callback
         self.session.timeout = self.timeout_
         self.session.open()
