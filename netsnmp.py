@@ -40,6 +40,7 @@ u_char = c_byte
 
 class netsnmp_session(Structure): pass
 class netsnmp_pdu(Structure): pass
+class netsnmp_transport(Structure): pass
 
 # int (*netsnmp_callback) (int, netsnmp_session *, int, netsnmp_pdu *, void *);
 netsnmp_callback = CFUNCTYPE(c_int,
@@ -230,6 +231,35 @@ lib.netsnmp_register_loghandler(NETSNMP_LOGHANDLER_CALLBACK, LOG_DEBUG)
 lib.snmp_pdu_create.restype = netsnmp_pdu_p
 lib.snmp_open.restype = POINTER(netsnmp_session)
 
+
+netsnmp_transport._fields_ = [
+    ('domain', POINTER(oid)),
+    ('domain_length', c_int),
+    ('local', u_char_p),
+    ('local_length', c_int),
+    ('remote', u_char_p),
+    ('remote_length', c_int),
+    ('sock', c_int),
+    ('flags', u_int),
+    ('data', c_void_p),
+    ('data_length', c_int),
+    ('msgMaxSize', c_size_t),
+    ('f_recv', c_void_p),
+    ('f_send', c_void_p),
+    ('f_close', c_void_p),
+    ('f_accept',  c_void_p),
+    ('f_fmtaddr', c_void_p),
+]
+lib.netsnmp_tdomain_transport.restype = POINTER(netsnmp_transport)
+
+# int snmp_input(int, netsnmp_session *, int, netsnmp_pdu *, void *);
+snmp_input_t = CFUNCTYPE(c_int,
+                         c_int,
+                         POINTER(netsnmp_session),
+                         c_int,
+                         netsnmp_pdu_p,
+                         c_void_p)
+
 class UnknownType(Exception):
     pass
 
@@ -313,6 +343,9 @@ _callback = netsnmp_callback(_callback)
 class ArgumentParseError(Exception):
     pass
 
+class TransportError(Exception):
+    pass
+
 def _doNothingProc(argc, argv, arg):
     return 0
 _doNothingProc = arg_parse_proc(_doNothingProc)
@@ -369,6 +402,29 @@ class Session(object):
             raise SnmpError('snmp_open')
         sessionMap[id(self)] = self
 
+    def awaitTraps(self, peername):
+        lib.netsnmp_udp_ctor()
+        transport = lib.netsnmp_tdomain_transport(peername, 1, "udp")
+        if not transport:
+            raise SnmpError("Unable to create transport", peername)
+        sess = netsnmp_session()
+        self.sess = lib.snmp_sess_init(byref(sess))
+        if not self.sess:
+            raise SnmpError('snmp_sess_init')
+        sess.peername = SNMP_DEFAULT_PEERNAME
+        sess.version = SNMP_DEFAULT_VERSION
+        sess.community_len = SNMP_DEFAULT_COMMUNITY_LEN
+        sess.retries = SNMP_DEFAULT_RETRIES
+        sess.timeout = SNMP_DEFAULT_TIMEOUT
+        sess.callback = _callback
+        sess.callback_magic = id(self)
+        # sess.authenticator = None
+        sess.isAuthoritative = SNMP_SESS_UNKNOWNAUTH
+        rc = lib.snmp_add(self.sess, transport, None, None)
+        if not rc:
+            raise SnmpError('snmp_add')
+        sessionMap[id(self)] = self
+            
     def close(self):
         if not self.sess: return
         if id(self) not in sessionMap:
@@ -430,16 +486,7 @@ class Session(object):
             raise SnmpError("snmp_send")
         return req.contents.reqid
 
-    def pdu_parse(self, pdu, buffer):
-        cbuff = create_string_buffer(buffer, len(buffer))
-        length = c_size_t(len(buffer))
-        after_header = c_char_p()
-        if lib.snmpv3_parse(byref(pdu),
-                            cbuff,
-                            byref(length),
-                            byref(after_header),
-                            self.sess):
-            raise SnmpError("pdu_parse")
+    
 
 MAXFD = 1024
 fdset = c_long * (MAXFD/32)
