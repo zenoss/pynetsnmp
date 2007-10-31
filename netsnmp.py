@@ -362,8 +362,11 @@ def parse_args(args, session):
         def toList(args):
             return [str(x) for x in args]
         raise ArgumentParseError("Unable to parse arguments", toList(argv))
+    # keep a reference to the args for as long as sess is alive
+    return argv
 
 def initialize_session(sess, cmdLineArgs, kw):
+    args = None
     kw = kw.copy()
     if cmdLineArgs:
         cmdLine = [x for x in cmdLineArgs]
@@ -376,9 +379,10 @@ def initialize_session(sess, cmdLineArgs, kw):
         if kw.get('peername'):
             cmdLine.append(kw['peername'])
             del kw['peername']
-        parse_args(cmdLine, byref(sess))
+        args = parse_args(cmdLine, byref(sess))
     for attr, value in kw.items():
         setattr(sess, attr, value)
+    return args
     
 
 class Session(object):
@@ -389,11 +393,12 @@ class Session(object):
         self.cmdLineArgs = cmdLineArgs
         self.kw = kw
         self.sess = None
+        self.args = None
 
     def open(self):
         sess = netsnmp_session()
         lib.snmp_sess_init(byref(sess))
-        initialize_session(sess, self.cmdLineArgs, self.kw)
+        self.args = initialize_session(sess, self.cmdLineArgs, self.kw)
         sess.callback = _callback
         sess.callback_magic = id(self)
         sess = lib.snmp_open(byref(sess))
@@ -432,6 +437,7 @@ class Session(object):
             return
         lib.snmp_close(self.sess)
         del sessionMap[id(self)]
+        self.args = None
 
     def callback(self, pdu):
         pass
