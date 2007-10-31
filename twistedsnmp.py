@@ -122,8 +122,8 @@ class AgentProxy:
 
     def callback(self, pdu):
         result = {}
-        d = self.defers.pop(pdu.reqid)
         response = netsnmp.getResult(pdu)
+        d = self.defers.pop(pdu.reqid)
         for oid, value in response:
             oid = '.' + '.'.join(map(str, oid))
             if isinstance(value, tuple):
@@ -140,7 +140,7 @@ class AgentProxy:
         d = self.defers.pop(reqid)
         reactor.callLater(0, d.errback, failure.Failure(TimeoutError()))
 
-    def open(self):
+    def _getCmdLineArgs(self):
         version = str(self.snmpVersion).lstrip('v')
         if version == '2':
             version += 'c'
@@ -152,7 +152,10 @@ class AgentProxy:
                                                 '-t', str(self.timeout),
                                                 '-r', str(self.tries),
                                                 '%s:%d' % (self.ip, self.port)]
-        self.session = netsnmp.Session(cmdLineArgs=cmdLineArgs)
+        return cmdLineArgs
+
+    def open(self):
+        self.session = netsnmp.Session(cmdLineArgs=self._getCmdLineArgs())
         self.session.callback = self.callback
         self.session.timeout = self.timeout_
         self.session.open()
@@ -193,10 +196,10 @@ class AgentProxy:
         updateReactor()
         return d
 
-    def getTable(self, oids, timeout, retryCount, maxRepetitions):
+    def getTable(self, oids, **kw):
         from tableretriever import TableRetriever
         try:
-            t = TableRetriever(self, oids, timeout, retryCount, maxRepetitions)
+            t = TableRetriever(self, oids, **kw)
         except Exception, ex:
             return defer.fail(ex)
         updateReactor()
