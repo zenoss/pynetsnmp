@@ -123,7 +123,10 @@ class AgentProxy:
     def callback(self, pdu):
         result = {}
         response = netsnmp.getResult(pdu)
-        d = self.defers.pop(pdu.reqid)
+        try:
+            d = self.defers.pop(pdu.reqid)
+        except KeyError:
+            return
         for oid, value in response:
             oid = '.' + '.'.join(map(str, oid))
             if isinstance(value, tuple):
