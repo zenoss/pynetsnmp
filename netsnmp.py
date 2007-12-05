@@ -27,7 +27,7 @@ except Exception:
     import warnings
     warnings.warn("Unable to load crypto library")
 
-lib = CDLL(find_library('netsnmp'))
+lib = CDLL(find_library('netsnmp'), RTLD_GLOBAL)
 lib.netsnmp_get_version.restype = c_char_p
 
 oid = c_long
@@ -181,7 +181,7 @@ netsnmp_pdu._fields_ = [
         ('enterprise_length', c_size_t ),
         ('trap_type', c_long ),
         ('specific_type', c_long ),
-        ('agent_addr', c_char * 4),
+        ('agent_addr', c_ubyte * 4),
         ('contextEngineID', c_char_p ),
         ('contextEngineIDLen', c_size_t ),
         ('contextName', c_char_p),
@@ -407,11 +407,13 @@ class Session(object):
             raise SnmpError('snmp_open')
         sessionMap[id(self)] = self
 
-    def awaitTraps(self, peername):
+    def awaitTraps(self, peername, fileno = -1):
         lib.netsnmp_udp_ctor()
         transport = lib.netsnmp_tdomain_transport(peername, 1, "udp")
         if not transport:
             raise SnmpError("Unable to create transport", peername)
+        if fileno >= 0:
+            os.dup2(fileno, transport.contents.sock)
         sess = netsnmp_session()
         self.sess = lib.snmp_sess_init(byref(sess))
         if not self.sess:
