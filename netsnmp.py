@@ -416,7 +416,7 @@ class Session(object):
             os.dup2(fileno, transport.contents.sock)
         sess = netsnmp_session()
         lib.snmp_sess_init(byref(sess))
-        self.sess = addrsesof(sess)
+        self.sess = addressof(sess)
         sess.peername = SNMP_DEFAULT_PEERNAME
         sess.version = SNMP_VERSION_2c
         sess.community_len = SNMP_DEFAULT_COMMUNITY_LEN
