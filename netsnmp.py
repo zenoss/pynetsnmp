@@ -415,11 +415,10 @@ class Session(object):
         if fileno >= 0:
             os.dup2(fileno, transport.contents.sock)
         sess = netsnmp_session()
-        self.sess = lib.snmp_sess_init(byref(sess))
-        if not self.sess:
-            raise SnmpError('snmp_sess_init')
+        lib.snmp_sess_init(byref(sess))
+        self.sess = addrsesof(sess)
         sess.peername = SNMP_DEFAULT_PEERNAME
-        sess.version = SNMP_DEFAULT_VERSION
+        sess.version = SNMP_VERSION_2c
         sess.community_len = SNMP_DEFAULT_COMMUNITY_LEN
         sess.retries = SNMP_DEFAULT_RETRIES
         sess.timeout = SNMP_DEFAULT_TIMEOUT
