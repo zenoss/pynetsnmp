@@ -418,7 +418,7 @@ class Session(object):
         lib.snmp_sess_init(byref(sess))
         self.sess = addressof(sess)
         sess.peername = SNMP_DEFAULT_PEERNAME
-        sess.version = SNMP_VERSION_2c
+        sess.version = SNMP_DEFAULT_VERSION
         sess.community_len = SNMP_DEFAULT_COMMUNITY_LEN
         sess.retries = SNMP_DEFAULT_RETRIES
         sess.timeout = SNMP_DEFAULT_TIMEOUT
