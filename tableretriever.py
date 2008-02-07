@@ -58,11 +58,10 @@ class TableRetriever(object):
     def saveResults(self, values, ts):
         if values:
             for oid, value in sorted(values.items()):
-                if ts.startOid < oid and oid.startswith(ts.startOid):
+                if oid.startswith(ts.startOid):
                     ts.result.append( (oid, value) )
                 else:
                     ts.finished = True
-                    break
         else:
             ts.finished = True
         self.fetchSomeMore()
