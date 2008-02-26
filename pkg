@@ -19,7 +19,7 @@ quit() {
    exit 1  
 }
 PACKAGE=pynetsnmp
-VERSION=`python -c 'import setup; print setup.VERSION'`
+VERSION=`python -c 'import version; print version.VERSION'`
 VPACKAGE=$PACKAGE-$VERSION
 SVN=http://dev.zenoss.org/svn
 SVNTRUNK=$SVN/trunk/$PACKAGE
