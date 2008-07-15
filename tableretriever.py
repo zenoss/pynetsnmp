@@ -6,13 +6,10 @@ def cmpOids(a, b):
     return cmp(map(int, a.strip('.').split('.')),
                map(int, b.strip('.').split('.')))
         
-try:
-    sortOids
-except NameError:
-    def sortOids(x):
-        x = list(x)
-        x.sort(cmp=cmpOids)
-        return x
+def sortOids(x):
+    x = list(x)
+    x.sort(cmp=cmpOids)
+    return x
 
 class _TableStatus(object):
 
