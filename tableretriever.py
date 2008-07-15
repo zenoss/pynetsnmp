@@ -60,7 +60,11 @@ class TableRetriever(object):
             stem = ts.startOid + '.'
             for oid, value in sorted(values.items()):
                 if oid.startswith(stem) and oid > ts.startOid:
-                    ts.result.append( (oid, value) )
+                    # defend against going backwards
+                    if ts.result and oid <= ts.result[-1][0]:
+                        ts.finished = True
+                    else:
+                        ts.result.append( (oid, value) )
                 else:
                     ts.finished = True
         else:
