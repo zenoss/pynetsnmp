@@ -1,12 +1,17 @@
 from twisted.internet import defer
 from twistedsnmp import translateOids
 
+def cmpOids(a, b):
+    "Compare two oid strings numerically"
+    return cmp(map(int, a.strip('.').split('.')),
+               map(int, b.strip('.').split('.')))
+        
 try:
-    sorted
+    sortOids
 except NameError:
-    def sorted(x):
+    def sortOids(x):
         x = list(x)
-        x.sort()
+        x.sort(cmp=cmpOids)
         return x
 
 class _TableStatus(object):
@@ -58,12 +63,13 @@ class TableRetriever(object):
     def saveResults(self, values, ts):
         if values:
             stem = ts.startOid + '.'
-            for oid, value in sorted(values.items()):
-                if oid.startswith(stem) and oid > ts.startOid:
+            for oid in sortOids(values.keys()):
+                if oid.startswith(stem) and cmpOids(oid, ts.startOid) > 0:
                     # defend against going backwards
-                    if ts.result and oid <= ts.result[-1][0]:
+                    if ts.result and cmpOids(oid, ts.result[-1][0]) <= 0:
                         ts.finished = True
                     else:
+                        value = values[oid]
                         ts.result.append( (oid, value) )
                 else:
                     ts.finished = True
