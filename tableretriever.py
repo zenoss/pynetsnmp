@@ -5,11 +5,6 @@ def cmpOids(a, b):
     "Compare two oid strings numerically"
     return cmp(map(int, a.strip('.').split('.')),
                map(int, b.strip('.').split('.')))
-        
-def sortOids(x):
-    x = list(x)
-    x.sort(cmp=cmpOids)
-    return x
 
 class _TableStatus(object):
 
@@ -60,13 +55,12 @@ class TableRetriever(object):
     def saveResults(self, values, ts):
         if values:
             stem = ts.startOid + '.'
-            for oid in sortOids(values.keys()):
+            for oid, value in values:
                 if oid.startswith(stem) and cmpOids(oid, ts.startOid) > 0:
                     # defend against going backwards
                     if ts.result and cmpOids(oid, ts.result[-1][0]) <= 0:
                         ts.finished = True
                     else:
-                        value = values[oid]
                         ts.result.append( (oid, value) )
                 else:
                     ts.finished = True

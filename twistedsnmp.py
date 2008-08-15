@@ -121,7 +121,7 @@ class AgentProxy:
         self.session = None
 
     def callback(self, pdu):
-        result = {}
+        result = []
         response = netsnmp.getResult(pdu)
         try:
             d = self.defers.pop(pdu.reqid)
@@ -131,12 +131,12 @@ class AgentProxy:
             oid = '.' + '.'.join(map(str, oid))
             if isinstance(value, tuple):
                 value = '.' + '.'.join(map(str, value))
-            result[oid] = value
+            result.append((oid, value))
         if pdu.errstat != netsnmp.SNMP_ERR_NOERROR:
             # fixme: we can do better: use errback
             m = PDU_ERRORS.get(pdu.errstat, 'Unknown error (%d)' % pdu.errstat)
             # log.warning("Packet for %s has error: %s", self.ip, m)
-            result = {}
+            result = []
         reactor.callLater(0, d.callback, result )
             
     def timeout_(self, reqid):
