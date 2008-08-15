@@ -92,11 +92,9 @@ class SnmpNameError(Exception):
     def __init__(self, oid):
         Exception.__init__(self, 'Bad Name', oid)
 
-def translateOid(oid):
-    return tuple(map(int, oid.strip('.').split('.')))
-
-def translateOids(oids):
-    return [translateOid(oid) for oid in oids]    
+def asOidStr(oid):
+    """converts an oid int sequence to an oid string"""
+    return '.'+'.'.join([str(x) for x in oid])
 
 class AgentProxy:
 
@@ -128,9 +126,8 @@ class AgentProxy:
         except KeyError:
             return
         for oid, value in response:
-            oid = '.' + '.'.join(map(str, oid))
             if isinstance(value, tuple):
-                value = '.' + '.'.join(map(str, value))
+                value=asOidStr(value)
             result.append((oid, value))
         if pdu.errstat != netsnmp.SNMP_ERR_NOERROR:
             # fixme: we can do better: use errback
@@ -173,7 +170,7 @@ class AgentProxy:
     def get(self, oids, timeout=None, retryCount=None):
         d = defer.Deferred()
         try:
-            self.defers[self.session.get(translateOids(oids))] = d
+            self.defers[self.session.get(oids)] = d
         except Exception, ex:
             return defer.fail(ex)
         updateReactor()
@@ -182,7 +179,7 @@ class AgentProxy:
     def walk(self, oid, timeout=None, retryCount=None):
         d = defer.Deferred()
         try:
-            self.defers[self.session.walk(translateOid(oid))] = d
+            self.defers[self.session.walk(oid)] = d
         except Exception, ex:
             return defer.fail(ex)
         updateReactor()
@@ -193,7 +190,7 @@ class AgentProxy:
         try:
             self.defers[self.session.getbulk(nonrepeaters,
                                              maxrepititions,
-                                             translateOids(oids))] = d
+                                             oids)] = d
         except Exception, ex:
             return defer.fail(ex)
         updateReactor()

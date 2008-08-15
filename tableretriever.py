@@ -1,17 +1,12 @@
 from twisted.internet import defer
-from twistedsnmp import translateOids
-
-def cmpOids(a, b):
-    "Compare two oid strings numerically"
-    return cmp(map(int, a.strip('.').split('.')),
-               map(int, b.strip('.').split('.')))
+from twistedsnmp import asOidStr
 
 class _TableStatus(object):
 
-    def __init__(self, startOid):
-        self.startOid = startOid
-        self.result = []
-        self.finished = False
+    def __init__(self, startOidStr):
+        self.startOid=tuple([int(x) for x in startOidStr.strip('.').split('.')])
+        self.result=[]
+        self.finished=False
 
 
 class TableRetriever(object):
@@ -47,21 +42,21 @@ class TableRetriever(object):
             return
         results = {}
         for ts in self.tableStatus:
-            results[ts.startOid] = dict(ts.result)
+            startOidStr=asOidStr(ts.startOid)
+            results[startOidStr] = dict(ts.result)
         self.defer.callback(results)
         self.defer = None
-                    
+
 
     def saveResults(self, values, ts):
         if values:
-            stem = ts.startOid + '.'
             for oid, value in values:
-                if oid.startswith(stem) and cmpOids(oid, ts.startOid) > 0:
+                if oid[:len(ts.startOid)]==ts.startOid and oid > ts.startOid:
                     # defend against going backwards
-                    if ts.result and cmpOids(oid, ts.result[-1][0]) <= 0:
+                    if ts.result and oid<=ts.result[-1][0]:
                         ts.finished = True
                     else:
-                        ts.result.append( (oid, value) )
+                        ts.result.append((asOidStr(oid), value))
                 else:
                     ts.finished = True
         else:
