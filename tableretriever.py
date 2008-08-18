@@ -43,7 +43,7 @@ class TableRetriever(object):
         results = {}
         for ts in self.tableStatus:
             startOidStr=asOidStr(ts.startOid)
-            results[startOidStr] = dict(ts.result)
+            results[startOidStr]=dict([(asOidStr(oid), value) for oid, value in ts.result])
         self.defer.callback(results)
         self.defer = None
 
@@ -56,7 +56,7 @@ class TableRetriever(object):
                     if ts.result and oid<=ts.result[-1][0]:
                         ts.finished = True
                     else:
-                        ts.result.append((asOidStr(oid), value))
+                        ts.result.append((oid, value))
                 else:
                     ts.finished = True
         else:

@@ -5,6 +5,7 @@ from twistedsnmp import AgentProxy
 from twisted.internet import reactor
 
 import logging
+logging.basicConfig()
 log = logging.getLogger("ifIndex")
 
 def error(why):
@@ -20,7 +21,7 @@ def closer(result, proxy):
     return result
 
 def main():
-    proxy = AgentProxy('colo3560g', snmpVersion='v2', community='zenoss')
+    proxy = AgentProxy('colo3560g', snmpVersion='1', community='zenoss')
     proxy.open()
     tr = TableRetriever(proxy, ('.1.3.6.1.2.1.2.2.1.1',))
     d = tr()
