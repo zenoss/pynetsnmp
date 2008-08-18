@@ -22,7 +22,7 @@ def closer(result, proxy):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-    proxy = AgentProxy('127.0.0.1', snmpVersion='2c')
+    proxy = AgentProxy('127.0.0.1', snmpVersion='v2')
     proxy.open()
     tr = TableRetriever(proxy,
     #                    ('.1.3.6.1.2.1.25.4.2.1.2', '.1.3.6.1.2.1.25.4.2.1.4'))
