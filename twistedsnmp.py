@@ -92,11 +92,28 @@ class SnmpNameError(Exception):
     def __init__(self, oid):
         Exception.__init__(self, 'Bad Name', oid)
 
+
 def asOidStr(oid):
     """converts an oid int sequence to an oid string"""
     return '.'+'.'.join([str(x) for x in oid])
 
-class AgentProxy:
+
+def asOid(oidStr):
+    """converts an OID string into a tuple of integers"""
+    return tuple([int(x) for x in oidStr.strip('.').split('.')])
+
+
+class AgentProxy(object):
+    """The public methods on AgentProxy (get, walk, getbulk) expect input OIDs
+    to be strings, and the result they produce is a dictionary.  The 
+    dictionary keys are OID strings and the values are the values returned by
+    the SNMP requests.
+    
+    The private methods (_get, _walk, _getbulk) expect input OIDs to be tuples
+    of integers.  These methods generate a result that is a list of pairs, 
+    each pair consisting of the OID string and the value that is returned by
+    the SNMP query. The list is ordered correctly by the OID (i.e. it is not 
+    ordered by the OID string)."""
 
     def __init__(self,
                  ip,
@@ -117,8 +134,10 @@ class AgentProxy:
         self.cmdLineArgs = cmdLineArgs
         self.defers = {}
         self.session = None
+        self.return_dct = False
 
     def callback(self, pdu):
+        """netsnmp session callback"""
         result = []
         response = netsnmp.getResult(pdu)
         try:
@@ -126,15 +145,20 @@ class AgentProxy:
         except KeyError:
             return
         for oid, value in response:
+            if self.return_dct:
+                oid = asOidStr(oid)
             if isinstance(value, tuple):
-                value=asOidStr(value)
+                value = asOidStr(value)
             result.append((oid, value))
         if pdu.errstat != netsnmp.SNMP_ERR_NOERROR:
             # fixme: we can do better: use errback
             m = PDU_ERRORS.get(pdu.errstat, 'Unknown error (%d)' % pdu.errstat)
             # log.warning("Packet for %s has error: %s", self.ip, m)
             result = []
-        reactor.callLater(0, d.callback, result )
+        if self.return_dct:
+            result = dict(result)
+            self.return_dct = False
+        reactor.callLater(0, d.callback, result)
             
     def timeout_(self, reqid):
         d = self.defers.pop(reqid)
@@ -167,7 +191,7 @@ class AgentProxy:
         self.session = None
         updateReactor()
 
-    def get(self, oids, timeout=None, retryCount=None):
+    def _get(self, oids, timeout=None, retryCount=None):
         d = defer.Deferred()
         try:
             self.defers[self.session.get(oids)] = d
@@ -176,7 +200,7 @@ class AgentProxy:
         updateReactor()
         return d
 
-    def walk(self, oid, timeout=None, retryCount=None):
+    def _walk(self, oid, timeout=None, retryCount=None):
         d = defer.Deferred()
         try:
             self.defers[self.session.walk(oid)] = d
@@ -185,7 +209,7 @@ class AgentProxy:
         updateReactor()
         return d
 
-    def getbulk(self, nonrepeaters, maxrepititions, oids):
+    def _getbulk(self, nonrepeaters, maxrepititions, oids):
         d = defer.Deferred()
         try:
             self.defers[self.session.getbulk(nonrepeaters,
@@ -196,6 +220,7 @@ class AgentProxy:
         updateReactor()
         return d
 
+
     def getTable(self, oids, **kw):
         from tableretriever import TableRetriever
         try:
@@ -204,6 +229,21 @@ class AgentProxy:
             return defer.fail(ex)
         updateReactor()
         return t()
+        
+    def get(self, oidStrs, timeout=None, retryCount=None):
+        self.return_dct = True
+        oids = [asOid(oidStr) for oidStr in oidStrs]
+        return self._get(oids, timeout, retryCount)
+
+    def walk(self, oidStr, timeout=None, retryCount=None):
+        self.return_dct = True
+        return self._walk(asOid(oidStr), timeout, retryCount)
+
+    def getbulk(self, nonrepeaters, maxrepititions, oidStrs):
+        self.return_dct = True
+        oids = [asOid(oidStr) for oidStr in oidStrs]
+        return self._getbulk(nonrepeaters, maxrepititions, oids)
+
 
 class _FakeProtocol:
     protocol = None

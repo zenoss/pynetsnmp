@@ -1,12 +1,12 @@
 from twisted.internet import defer
-from twistedsnmp import asOidStr
+from twistedsnmp import asOidStr, asOid
 
 class _TableStatus(object):
 
     def __init__(self, startOidStr):
-        self.startOid=tuple([int(x) for x in startOidStr.strip('.').split('.')])
-        self.result=[]
-        self.finished=False
+        self.startOid = asOid(startOidStr)
+        self.result = []
+        self.finished = False
 
 
 class TableRetriever(object):
@@ -21,9 +21,9 @@ class TableRetriever(object):
         self.tableStatus = [_TableStatus(oid) for oid in oids]
         self.defer = defer.Deferred()
         if proxy.snmpVersion.find('1') > -1:
-            self.how = proxy.walk
+            self.how = proxy._walk
         else:
-            self.how = lambda x: proxy.getbulk(0, maxRepetitions, [x])
+            self.how = lambda x: proxy._getbulk(0, maxRepetitions, [x])
 
     def __call__(self):
         self.fetchSomeMore()
