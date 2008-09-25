@@ -4,6 +4,7 @@ from twistedsnmp import asOidStr, asOid
 class _TableStatus(object):
 
     def __init__(self, startOidStr):
+        self.startOidStr = startOidStr
         self.startOid = asOid(startOidStr)
         self.result = []
         self.finished = False
@@ -42,8 +43,7 @@ class TableRetriever(object):
             return
         results = {}
         for ts in self.tableStatus:
-            startOidStr=asOidStr(ts.startOid)
-            results[startOidStr]=dict([(asOidStr(oid), value) for oid, value in ts.result])
+            results[ts.startOidStr]=dict([(asOidStr(oid), value) for oid, value in ts.result])
         self.defer.callback(results)
         self.defer = None
 
