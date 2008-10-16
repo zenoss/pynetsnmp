@@ -17,14 +17,20 @@ class TableRetriever(object):
                  oids,
                  timeout = 1.5,
                  retryCount = 3,
-                 maxRepetitions = 100):
+                 maxRepetitions = 100,
+                 limit = 1000):
         self.proxy = proxy
         self.tableStatus = [_TableStatus(oid) for oid in oids]
         self.defer = defer.Deferred()
         if proxy.snmpVersion.find('1') > -1:
             self.how = proxy._walk
         else:
-            self.how = lambda x: proxy._getbulk(0, maxRepetitions, [x])
+            def v2v3how(oids):
+                return proxy._getbulk(0, min(maxRepetitions, limit), [oids])
+            self.how = v2v3how
+        self.limit = limit
+        self.count = 0
+        self.hit_limit = False
 
     def __call__(self):
         self.fetchSomeMore()
@@ -51,6 +57,7 @@ class TableRetriever(object):
     def saveResults(self, values, ts):
         if values:
             for oid, value in values:
+                self.count += 1
                 if oid[:len(ts.startOid)]==ts.startOid and oid > ts.startOid:
                     # defend against going backwards
                     if ts.result and oid<=ts.result[-1][0]:
@@ -61,6 +68,9 @@ class TableRetriever(object):
                     ts.finished = True
         else:
             ts.finished = True
+        if not ts.finished and self.count >= self.limit: 
+            ts.finished = True
+            self.hit_limit = True
         self.fetchSomeMore()
 
     def error(self, why):
