@@ -13,6 +13,19 @@ if sys.platform.find('free') > -1:
             if os.path.exists(name):
                 return name
         return find_library_orig(name)
+
+find_library_orig = find_library
+def find_library(name):
+    if sys.platform == "darwin":
+        libPath = os.environ['DYLD_LIBRARY_PATH']
+    else:
+        libPath = os.environ['LD_LIBRARY_PATH']
+    libPathList = libPath.split(':')
+    for path in libPathList:
+        pathName = path+'/lib%s.so' % name
+        if os.path.exists(pathName):
+            return pathName
+    return find_library_orig(name)
     
 import logging
 log = logging.getLogger('netsnmp')
@@ -119,18 +132,6 @@ netsnmp_session._fields_ = [
         ('myvoid', c_void_p),
         ]
 
-find_library_orig = find_library
-def find_library(name):
-    if sys.platform == "darwin":
-        libPath = os.environ['DYLD_LIBRARY_PATH']
-    else:
-        libPath = os.environ['LD_LIBRARY_PATH']
-    libPathList = libPath.split(':')
-    for path in libPathList:
-        pathName = path+'/lib%s.so' % name
-        if os.path.exists(pathName):
-            return pathName
-    return find_library_orig(name)
 
 
 dataFreeHook = CFUNCTYPE(c_void_p)
