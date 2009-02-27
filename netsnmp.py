@@ -307,7 +307,7 @@ decoder = {
     chr(ASN_BIT_STR): decodeString,
     chr(ASN_IPADDRESS): decodeIp,
     chr(ASN_COUNTER): lambda pdu: pdu.val.uinteger.contents.value,
-    chr(ASN_GAUGE): lambda pdu: pdu.val.integer.contents.value,
+    chr(ASN_GAUGE): lambda pdu: pdu.val.uinteger.contents.value,
     chr(ASN_TIMETICKS): lambda pdu: pdu.val.uinteger.contents.value,
     chr(ASN_COUNTER64): decodeBigInt,
     chr(ASN_APP_FLOAT): lambda pdu: pdu.val.float.contents.value,
