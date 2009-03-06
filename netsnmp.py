@@ -510,7 +510,7 @@ class Session(object):
     
 
 MAXFD = 1024
-fdset = c_long * (MAXFD/32)
+fdset = c_int32 * (MAXFD/32)
 
 class timeval(Structure):
     _fields_ = [
