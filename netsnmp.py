@@ -17,9 +17,9 @@ if sys.platform.find('free') > -1:
 find_library_orig = find_library
 def find_library(name):
     if sys.platform == "darwin":
-        libPath = os.environ['DYLD_LIBRARY_PATH']
+        libPath = os.environ.get('DYLD_LIBRARY_PATH', '')
     else:
-        libPath = os.environ['LD_LIBRARY_PATH']
+        libPath = os.environ.get('LD_LIBRARY_PATH', '')
     libPathList = libPath.split(':')
     for path in libPathList:
         pathName = path+'/lib%s.so' % name
