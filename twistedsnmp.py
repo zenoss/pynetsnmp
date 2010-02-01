@@ -143,6 +143,12 @@ class AgentProxy(object):
         try:
             d = self.defers.pop(pdu.reqid)
         except KeyError:
+            # We seem to end up here if we use bad credentials with authPriv.
+            # The only reasonable thing to do is call all of the deferreds with
+            # no results.
+            for d in (d for d in self.defers.values() if not d.called):
+                reactor.callLater(0, d.callback, result)
+
             return
         for oid, value in response:
             if self.return_dct:
