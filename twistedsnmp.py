@@ -192,7 +192,11 @@ class AgentProxy(object):
         updateReactor()
 
     def close(self):
-        assert self.session
+        if self.session is None:
+            log.debug("Ignoring request to close a closed session for %s",
+                      self.ip)
+            return
+
         self.session.close()
         self.session = None
         updateReactor()
