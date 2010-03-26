@@ -192,10 +192,9 @@ class AgentProxy(object):
         updateReactor()
 
     def close(self):
-        if self.session is None:
-            log.debug("Ignoring request to close a closed session for %s",
-                      self.ip)
-            return
+        # Changing this to something sane causes zenperfsnmp to blow up
+        # Trac http://dev.zenoss.org/trac/ticket/6354
+        assert self.session
 
         self.session.close()
         self.session = None
