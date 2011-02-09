@@ -429,8 +429,8 @@ class Session(object):
         if fileno >= 0:
             os.dup2(fileno, transport.contents.sock)
         sess = netsnmp_session()
-        lib.snmp_sess_init(byref(sess))
-        self.sess = addressof(sess)
+        self.sess = pointer(sess)
+        lib.snmp_sess_init(self.sess)
         sess.peername = SNMP_DEFAULT_PEERNAME
         sess.version = SNMP_DEFAULT_VERSION
         sess.community_len = SNMP_DEFAULT_COMMUNITY_LEN
