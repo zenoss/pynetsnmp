@@ -266,6 +266,11 @@ netsnmp_transport._fields_ = [
 ]
 lib.netsnmp_tdomain_transport.restype = POINTER(netsnmp_transport)
 
+lib.netsnmp_transport_open_client.restype = POINTER(netsnmp_transport)
+lib.snmp_add.restype = POINTER(netsnmp_session)
+lib.snmp_add_var.argtypes = [
+    netsnmp_pdu_p, POINTER(oid), c_size_t, c_char, c_char_p]
+
 # int snmp_input(int, netsnmp_session *, int, netsnmp_pdu *, void *);
 snmp_input_t = CFUNCTYPE(c_int,
                          c_int,
@@ -282,6 +287,9 @@ def mkoid(n):
     for i, v in enumerate(n):
         oids[i] = v
     return oids
+
+def strToOid(oidStr):
+    return mkoid(tuple([int(x) for x in oidStr.strip('.').split('.')]))
 
 def decodeOid(pdu):
     return tuple([pdu.val.objid[i] for i in range(pdu.val_len / sizeof(u_long))])
@@ -444,7 +452,28 @@ class Session(object):
         if not rc:
             raise SnmpError('snmp_add')
         sessionMap[id(self)] = self
-            
+
+    def sendTrap(self, trapoid, varbinds=None):
+        pdu = lib.snmp_pdu_create(SNMP_MSG_TRAP2)
+
+        # sysUpTime is mandatory on V2Traps.
+        objid_sysuptime = mkoid((1,3,6,1,2,1,1,3,0))
+        uptime = "%ld" % lib.get_uptime()
+        lib.snmp_add_var(
+            pdu, objid_sysuptime, len(objid_sysuptime), 't', uptime)
+
+        # snmpTrapOID is mandatory on V2Traps.
+        objid_snmptrap = mkoid((1,3,6,1,6,3,1,1,4,1,0))
+        lib.snmp_add_var(
+            pdu, objid_snmptrap, len(objid_snmptrap), 'o', trapoid)
+
+        if varbinds:
+            for n, t, v in varbinds:
+                n = strToOid(n)
+                lib.snmp_add_var(pdu, n, len(n), t, v)
+
+        lib.snmp_send(self.sess, pdu)
+
     def close(self):
         if not self.sess: return
         if id(self) not in sessionMap:
