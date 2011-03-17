@@ -21,9 +21,9 @@ quit() {
 PACKAGE=pynetsnmp
 VERSION=`python -c 'import version; print version.VERSION'`
 VPACKAGE=$PACKAGE-$VERSION
-SVN=http://dev.zenoss.org/svn
-SVNTRUNK=$SVN/trunk/$PACKAGE
-SVNTAG=$SVN/tags/$VPACKAGE
+SVN=http://dev.zenoss.org/svnint
+SVNTRUNK=$SVN/trunk/core/$PACKAGE
+SVNTAG=$SVN/tags/core/$VPACKAGE
 svn cp -m"making release $VERSION" $SVNTRUNK $SVNTAG || quit cannot create tag
 svn export $SVNTAG /tmp/$VPACKAGE || quit cannot create export tree
 OLD=`pwd`
