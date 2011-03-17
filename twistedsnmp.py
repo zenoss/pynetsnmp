@@ -1,13 +1,13 @@
 import netsnmp
 from CONSTANTS import *
 
+from ipaddr import IPAddress
+
 from twisted.internet import reactor
 from twisted.internet.error import TimeoutError
 from twisted.internet.interfaces import IReadDescriptor
 from twisted.python import failure
 from twisted.internet import defer
-
-from sets import Set
 
 import logging
 log = logging.getLogger('twistedsnmp')
@@ -75,8 +75,8 @@ def updateReactor():
             reader = SnmpReader(fd)
             fdMap[fd] = reader
             reactor.addReader(reader)
-    current = Set(fdMap.keys())
-    need = Set(fds)
+    current = set(fdMap.keys())
+    need = set(fds)
     doomed = current - need
     for d in doomed:
         reactor.removeReader(fdMap[d])
@@ -177,11 +177,15 @@ class AgentProxy(object):
         if self.session is not None:
             self.session.close()
             self.session = None
+
+        ipobj = IPAddress(self.ip)
+        ip_port_fmt = '%s:%d' if ipobj.version==4 else 'udp6:%s:%d'
+
         cmdLineArgs = list(self.cmdLineArgs) + ['-v', str(version),
                                                 '-c', self.community,
                                                 '-t', str(self.timeout),
                                                 '-r', str(self.tries),
-                                                '%s:%d' % (self.ip, self.port)]
+                                                ip_port_fmt % (self.ip, self.port)]
         return cmdLineArgs
 
     def open(self):
