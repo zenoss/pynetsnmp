@@ -430,6 +430,7 @@ class Session(object):
 
     def awaitTraps(self, peername, fileno = -1):
         lib.netsnmp_udp_ctor()
+        lib.netsnmp_udpipv6_ctor()
         transport = lib.netsnmp_tdomain_transport(peername, 1, "udp")
         if not transport:
             raise SnmpError("Unable to create transport", peername)
