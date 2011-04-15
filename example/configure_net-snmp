@@ -1,0 +1,16 @@
+#! /bin/bash
+
+set -xeu
+
+./configure \
+  --with-default-snmp-version=2 \
+  --with-sys-contact="bedwards@zenoss.com" \
+  --with-sys-location="ubuntu vm on sobchak" \
+  --with-logfile=/var/log/snmpd.log \
+  --with-persistent-directory=/var/net-snmp \
+  --enable-ipv6 \
+  --with-python-modules \
+  --enable-debugging \
+  --libdir=/usr/lib \
+  --enable-shared
+
