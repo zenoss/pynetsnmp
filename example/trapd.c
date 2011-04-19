@@ -14,7 +14,7 @@
 
 static char *program_name;
 
-static int pre_parse(netsnmp_session * session, netsnmp_transport *transport, void *transport_data, int transport_data_length) {
+static int pre_parse(netsnmp_session *session, netsnmp_transport *transport, void *transport_data, int transport_data_length) {
   char hostname[NI_MAXHOST];
   getnameinfo((struct sockaddr*) transport_data, INET_ADDRSTRLEN, hostname, NI_MAXHOST, NULL, 0, 0);
   printf("%s: pre_parse: hostname=%s\n", program_name, hostname);
@@ -98,7 +98,6 @@ int main(int argc, char **argv) {
   printf("%s: main\n", program_name);
   init_usm();
   netsnmp_udp_ctor();
-  netsnmp_udpipv6_ctor();
   init_snmpv3(NULL);
   setup_engineID(NULL, NULL);
   usm_parse_create_usmUser("createUser", "-e 0x8000000001020304 traptest SHA mypassword AES");

@@ -1,4 +1,5 @@
 import os
+import socket
 from ctypes import *
 from ctypes.util import find_library
 from CONSTANTS import *
@@ -404,7 +405,6 @@ def initialize_session(sess, cmdLineArgs, kw):
     for attr, value in kw.items():
         setattr(sess, attr, value)
     return args
-    
 
 class Session(object):
 
@@ -428,7 +428,8 @@ class Session(object):
             raise SnmpError('snmp_open')
         sessionMap[id(self)] = self
 
-    def awaitTraps(self, peername, fileno = -1):
+    def awaitTraps(self, peername, fileno = -1, users=[], pre_parse_callback=None):
+        lib.init_usm()
         lib.netsnmp_udp_ctor()
         marker = object()
         if getattr(lib, "netsnmp_udpipv6_ctor", marker) is not marker:
@@ -437,6 +438,21 @@ class Session(object):
             lib.netsnmp_udp6_ctor()
         else:
             raise SnmpError("Cannot find constructor function for UDP/IPv6 transport domain object.")
+        lib.init_snmpv3(None)
+        lib.setup_engineID(None, None)
+        for user in users:
+            if user.version == 3:
+                try:
+                    line = " ".join(["-e",
+                                     user.engine_id,
+                                     user.username,
+                                     user.authentication_type, # MD5 or SHA
+                                     user.authentication_passphrase,
+                                     user.privacy_protocol, # DES or AES
+                                     user.privacy_passphrase])
+                    lib.usm_parse_create_usmUser("createUser", line)
+                except StandardError:
+                    log.debug("awaitTraps: could not create user: %s" % user)
         transport = lib.netsnmp_tdomain_transport(peername, 1, "udp")
         if not transport:
             raise SnmpError("Unable to create transport", peername)
@@ -454,7 +470,7 @@ class Session(object):
         sess.callback_magic = id(self)
         # sess.authenticator = None
         sess.isAuthoritative = SNMP_SESS_UNKNOWNAUTH
-        rc = lib.snmp_add(self.sess, transport, None, None)
+        rc = lib.snmp_add(self.sess, transport, pre_parse_callback, None)
         if not rc:
             raise SnmpError('snmp_add')
         sessionMap[id(self)] = self
