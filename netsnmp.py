@@ -28,7 +28,7 @@ def find_library(name):
     return find_library_orig(name)
     
 import logging
-log = logging.getLogger('netsnmp')
+log = logging.getLogger('zen.netsnmp')
 
 c_int_p = c_void_p
 authenticator = CFUNCTYPE(c_char_p, c_int_p, c_char_p, c_int)
@@ -233,7 +233,7 @@ PRIORITY_MAP = {
     }
 def netsnmp_logger(a, b, msg):
     msg = cast(msg, netsnmp_log_message_p)
-    priority = PRIORITY_MAP.get(msg.contents.priority, logging.WARNING)
+    priority = PRIORITY_MAP.get(msg.contents.priority, logging.DEBUG)
     log.log(priority, str(msg.contents.msg).strip())
     return 0
 netsnmp_logger = log_callback(netsnmp_logger)
@@ -427,8 +427,11 @@ class Session(object):
             raise SnmpError('snmp_open')
         sessionMap[id(self)] = self
 
-    def awaitTraps(self, peername, fileno = -1, users=[], pre_parse_callback=None):
+    def awaitTraps(self, peername, fileno = -1, pre_parse_callback=None, debug=False):
         lib.init_usm()
+        if debug:
+            lib.debug_register_tokens("snmp_parse") # or "ALL" for everything
+            lib.snmp_set_do_debugging(1)
         lib.netsnmp_udp_ctor()
         marker = object()
         if getattr(lib, "netsnmp_udpipv6_ctor", marker) is not marker:
@@ -439,25 +442,13 @@ class Session(object):
             raise SnmpError("Cannot find constructor function for UDP/IPv6 transport domain object.")
         lib.init_snmpv3(None)
         lib.setup_engineID(None, None)
-        for user in users:
-            if user.version == 3:
-                try:
-                    line = " ".join(["-e",
-                                     user.engine_id,
-                                     user.username,
-                                     user.authentication_type, # MD5 or SHA
-                                     user.authentication_passphrase,
-                                     user.privacy_protocol, # DES or AES
-                                     user.privacy_passphrase])
-                    lib.usm_parse_create_usmUser("createUser", line)
-                except StandardError:
-                    log.debug("awaitTraps: could not create user: %s" % user)
         transport = lib.netsnmp_tdomain_transport(peername, 1, "udp")
         if not transport:
             raise SnmpError("Unable to create transport", peername)
         if fileno >= 0:
             os.dup2(fileno, transport.contents.sock)
         sess = netsnmp_session()
+        
         self.sess = pointer(sess)
         lib.snmp_sess_init(self.sess)
         sess.peername = SNMP_DEFAULT_PEERNAME
@@ -473,6 +464,23 @@ class Session(object):
         if not rc:
             raise SnmpError('snmp_add')
         sessionMap[id(self)] = self
+
+    def create_users(self, users):
+        log.debug("create_users: Creating %s users." % len(users))
+        for user in users:
+            if user.version == 3:
+                try:
+                    line = " ".join(["-e",
+                                     user.engine_id,
+                                     user.username,
+                                     user.authentication_type, # MD5 or SHA
+                                     user.authentication_passphrase,
+                                     user.privacy_protocol, # DES or AES
+                                     user.privacy_passphrase])
+                    lib.usm_parse_create_usmUser("createUser", line)
+                    log.debug("create_users: created user: %s" % user)
+                except StandardError, e:
+                    log.debug("create_users: could not create user: %s: (%s: %s)" % (user, e.__class__.__name__, e))
 
     def sendTrap(self, trapoid, varbinds=None):
         pdu = lib.snmp_pdu_create(SNMP_MSG_TRAP2)
