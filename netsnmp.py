@@ -1,5 +1,4 @@
 import os
-import socket
 from ctypes import *
 from ctypes.util import find_library
 from CONSTANTS import *
