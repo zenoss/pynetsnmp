@@ -10,7 +10,7 @@ from twisted.python import failure
 from twisted.internet import defer
 
 import logging
-log = logging.getLogger('twistedsnmp')
+log = logging.getLogger('zen.twistedsnmp')
 
 class Timer(object):
     callLater = None
@@ -102,6 +102,22 @@ def asOid(oidStr):
     """converts an OID string into a tuple of integers"""
     return tuple([int(x) for x in oidStr.strip('.').split('.')])
 
+def _get_agent_spec(ipobj, interface, port):
+    """take a google ipaddr object and port number and produce a net-snmp
+    agent specification (see the snmpcmd manpage)"""
+    if ipobj.version == 4:
+        agent = "udp:%s:%s" % (ipobj.compressed, port)
+    elif ipobj.version == 6:
+        if ipobj.is_link_local:
+            if interface is None:
+                raise RuntimeError("Cannot create agent specification from link local IPv6 address without an interface")
+            else:
+                agent = "udp6:[%s%%%s]:%s" % (ipobj.compressed, interface, port)
+        else:
+            agent = "udp6:[%s]:%s" % (ipobj.compressed, self.port)
+    else:
+        raise RuntimeError("Cannot create agent specification for IP address version: %s" % ipobj.version)
+    return agent
 
 class AgentProxy(object):
     """The public methods on AgentProxy (get, walk, getbulk) expect input OIDs
@@ -178,14 +194,22 @@ class AgentProxy(object):
             self.session.close()
             self.session = None
 
-        ipobj = IPAddress(self.ip)
-        ip_port_fmt = '%s:%d' if ipobj.version==4 else 'udp6:%s:%d'
+        if '%' in self.ip:
+            address, interface = self.ip.split('%')
+        else:
+            address = self.ip
+            interface = None
+
+        log.debug("AgentProxy._getCmdLineArgs: using google ipaddr on %s" % address)
+        ipobj = IPAddress(address)
+        agent = _get_agent_spec(ipobj, interface, self.port)
 
         cmdLineArgs = list(self.cmdLineArgs) + ['-v', str(version),
                                                 '-c', self.community,
                                                 '-t', str(self.timeout),
                                                 '-r', str(self.tries),
-                                                ip_port_fmt % (self.ip, self.port)]
+                                                agent,
+                                               ]
         return cmdLineArgs
 
     def open(self):
