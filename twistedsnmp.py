@@ -114,7 +114,7 @@ def _get_agent_spec(ipobj, interface, port):
             else:
                 agent = "udp6:[%s%%%s]:%s" % (ipobj.compressed, interface, port)
         else:
-            agent = "udp6:[%s]:%s" % (ipobj.compressed, self.port)
+            agent = "udp6:[%s]:%s" % (ipobj.compressed, port)
     else:
         raise RuntimeError("Cannot create agent specification for IP address version: %s" % ipobj.version)
     return agent

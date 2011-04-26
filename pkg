@@ -1,7 +1,7 @@
 #! /bin/sh
 #
 # Script used by the Zenoss Dev team (the authors of pynetsnmp) to
-# release and deploy updated versions.  First, go edit setup.py
+# release and deploy updated versions.  First, go edit version.py
 # and update the VERSION value.
 #
 # Run this script.  This will generate a tarball in the parent
