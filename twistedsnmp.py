@@ -241,6 +241,8 @@ class AgentProxy(object):
         d = defer.Deferred()
         try:
             self.defers[self.session.walk(oid)] = d
+        except netsnmp.SnmpTimeoutError:
+            return defer.fail(TimeoutError())
         except Exception, ex:
             return defer.fail(ex)
         updateReactor()

@@ -346,6 +346,9 @@ class SnmpError(Exception):
         lib.snmp_perror(why)
         Exception.__init__(self, why)
 
+class SnmpTimeoutError(Exception):
+    pass
+
 sessionMap = {}
 def _callback(operation, sp, reqid, pdu, magic):
     sess = sessionMap[magic]
@@ -560,12 +563,22 @@ class Session(object):
         req = self._create_request(SNMP_MSG_GETNEXT)
         oid = mkoid(root)
         lib.snmp_add_null_var(req, oid, len(oid))
-        if not lib.snmp_send(self.sess, req):
+        send_status = lib.snmp_send(self.sess, req)
+        log.debug("Session.walk: send_status=%s" % send_status)
+        if send_status == 0:
+            cliberr = c_int()
+            snmperr = c_int()
+            errstring = c_char_p()
+            lib.snmp_error(self.sess, byref(cliberr), byref(snmperr), byref(errstring));
+            fmt = "Session.walk: snmp_send cliberr=%s, snmperr=%s, errstring=%s"
+            msg = fmt % (cliberr.value, snmperr.value, errstring.value)
+            log.debug(msg)
             lib.snmp_free_pdu(req)
-            raise SnmpError("snmp_send")
+            if snmperr.value == SNMPERR_TIMEOUT:
+                raise SnmpTimeoutError()
+            raise SnmpError(msg)
         return req.contents.reqid
 
-    
 
 MAXFD = 1024
 fdset = c_int32 * (MAXFD/32)
