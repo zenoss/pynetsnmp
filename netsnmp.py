@@ -442,7 +442,7 @@ class Session(object):
         elif getattr(lib, "netsnmp_udp6_ctor", marker) is not marker:
             lib.netsnmp_udp6_ctor()
         else:
-            raise SnmpError("Cannot find constructor function for UDP/IPv6 transport domain object.")
+            log.debug("Cannot find constructor function for UDP/IPv6 transport domain object.")
         lib.init_snmpv3(None)
         lib.setup_engineID(None, None)
         transport = lib.netsnmp_tdomain_transport(peername, 1, "udp")
