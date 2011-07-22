@@ -394,7 +394,7 @@ def initialize_session(sess, cmdLineArgs, kw):
     kw = kw.copy()
     if cmdLineArgs:
         cmdLine = [x for x in cmdLineArgs]
-        if type(cmdLine[0]) == type(()):
+        if isinstance(cmdLine[0], tuple):
             result = []
             for opt, val in cmdLine:
                 result.append(opt)
