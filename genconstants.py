@@ -2,7 +2,7 @@ import re
 import os
 
 def process(f, output):
-    lines = open('/usr/include/net-snmp/library/%s.h' % f).readlines()
+    lines = open('/usr/include/net-snmp/%s' % f).readlines()
     sp = '[ \t]*'
     comment = re.compile('/\\*(.*\\*/|[^*]*$)')
     define = re.compile(sp.join(['^',
@@ -29,8 +29,12 @@ def make_imports():
         out = open('CONSTANTS.py.new', 'w')
         out.write("USM_LENGTH_OID_TRANSFORM = 10\n")
         out.write("NULL = None\n")
-        for f in 'callback asn1 snmp snmp_api snmp_impl snmp_logging'.split():
-            process(f, out)
+        paths = []
+        paths.extend('library/' + x for x in
+            ('callback.h','asn1.h','snmp.h','snmp_api.h','snmp_impl.h','snmp_logging.h'))
+        paths.append('types.h')
+        for path in paths:
+            process(path, out)
         out.close()
         os.rename('CONSTANTS.py.new', 'CONSTANTS.py')
     except IOError:                     # file not found, prolly
