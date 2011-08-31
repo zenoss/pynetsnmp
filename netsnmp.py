@@ -66,6 +66,7 @@ arg_parse_proc = CFUNCTYPE(c_int, POINTER(c_char_p), c_int);
 
 version = lib.netsnmp_get_version()
 float_version = float('.'.join(version.split('.')[:2]))
+_netsnmp_str_version = tuple(str(v) for v in version.split('.'))
 localname = []
 paramName = []
 if float_version < 5.099:
@@ -74,6 +75,10 @@ if float_version > 5.199:
     localname = [('localname', c_char_p)]
     if float_version > 5.299:
         paramName = [('paramName', c_char_p)]
+# Versions >= 5.6 and < 5.6.1.1 broke binary compatibility and changed oid type from c_long to c_uint32. This works
+# around the issue for these platforms to allow things to work properly.
+if _netsnmp_str_version >= ('5','6') and _netsnmp_str_version <= ('5','6','1','1'):
+    oid = c_uint32
 
 netsnmp_session._fields_ = [
         ('version', c_long),
@@ -269,6 +274,11 @@ lib.netsnmp_tdomain_transport.restype = POINTER(netsnmp_transport)
 lib.snmp_add.restype = POINTER(netsnmp_session)
 lib.snmp_add_var.argtypes = [
     netsnmp_pdu_p, POINTER(oid), c_size_t, c_char, c_char_p]
+
+lib.get_uptime.restype = c_long
+
+lib.snmp_send.argtypes = (POINTER(netsnmp_session), netsnmp_pdu_p)
+lib.snmp_send.restype = c_int
 
 # int snmp_input(int, netsnmp_session *, int, netsnmp_pdu *, void *);
 snmp_input_t = CFUNCTYPE(c_int,
