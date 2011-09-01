@@ -119,6 +119,37 @@ def _get_agent_spec(ipobj, interface, port):
         raise RuntimeError("Cannot create agent specification for IP address version: %s" % ipobj.version)
     return agent
 
+class Snmpv3Error(Exception):
+
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return self.message
+
+    def __repr__(self):
+        return self.message
+
+USM_STATS_OIDS = {
+
+    # usmStatsWrongDigests
+    ".1.3.6.1.6.3.15.1.1.5.0":
+    "check zSnmpAuthType and zSnmpAuthPassword, packet did not include the expected digest value",
+
+    # usmStatsUnknownUserNames
+    ".1.3.6.1.6.3.15.1.1.3.0":
+    "check zSnmpSecurityName, packet referenced an unknown user",
+
+    # usmStatsUnsupportedSecLevels
+    ".1.3.6.1.6.3.15.1.1.1.0":
+    "packet requested an unknown or unavailable security level",
+
+    # usmStatsDecryptionErrors
+    ".1.3.6.1.6.3.15.1.1.6.0":
+    "check zSnmpPrivType, packet could not be decrypted"
+
+}
+
 class AgentProxy(object):
     """The public methods on AgentProxy (get, walk, getbulk) expect input OIDs
     to be strings, and the result they produce is a dictionary.  The 
@@ -156,16 +187,26 @@ class AgentProxy(object):
         """netsnmp session callback"""
         result = []
         response = netsnmp.getResult(pdu)
+
         try:
             d = self.defers.pop(pdu.reqid)
         except KeyError:
             # We seem to end up here if we use bad credentials with authPriv.
             # The only reasonable thing to do is call all of the deferreds with
-            # no results.
+            # Snmpv3Errors.
+            for usmStatsOid, count in response:
+                usmStatsOidStr = asOidStr(usmStatsOid)
+                default_msg = "packet dropped (OID: {0})".format(usmStatsOidStr)
+                message = USM_STATS_OIDS.get(usmStatsOidStr, default_msg)
+                break
+            else:
+                message = "packet dropped"
+
             for d in (d for d in self.defers.values() if not d.called):
-                reactor.callLater(0, d.callback, result)
+                reactor.callLater(0, d.errback, failure.Failure(Snmpv3Error(message)))
 
             return
+
         for oid, value in response:
             if self.return_dct:
                 oid = asOidStr(oid)
