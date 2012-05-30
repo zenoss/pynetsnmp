@@ -181,7 +181,6 @@ class AgentProxy(object):
         self.cmdLineArgs = cmdLineArgs
         self.defers = {}
         self.session = None
-        self.return_dct = False
 
     def callback(self, pdu):
         """netsnmp session callback"""
@@ -216,8 +215,6 @@ class AgentProxy(object):
             return
 
         for oid, value in response:
-            if self.return_dct:
-                oid = asOidStr(oid)
             if isinstance(value, tuple):
                 value = asOidStr(value)
             result.append((oid, value))
@@ -226,11 +223,8 @@ class AgentProxy(object):
             m = PDU_ERRORS.get(pdu.errstat, 'Unknown error (%d)' % pdu.errstat)
             # log.warning("Packet for %s has error: %s", self.ip, m)
             result = []
-        if self.return_dct:
-            result = dict(result)
-            self.return_dct = False
         reactor.callLater(0, d.callback, result)
-            
+
     def timeout_(self, reqid):
         d = self.defers.pop(reqid)
         reactor.callLater(0, d.errback, failure.Failure(TimeoutError()))
@@ -319,18 +313,29 @@ class AgentProxy(object):
         return t()
         
     def get(self, oidStrs, timeout=None, retryCount=None):
-        self.return_dct = True
         oids = [asOid(oidStr) for oidStr in oidStrs]
-        return self._get(oids, timeout, retryCount)
+        deferred = self._get(oids, timeout, retryCount)
+        deferred.addCallback(self._convertToDict)
+        return deferred
 
     def walk(self, oidStr, timeout=None, retryCount=None):
-        self.return_dct = True
-        return self._walk(asOid(oidStr), timeout, retryCount)
+        deferred = self._walk(asOid(oidStr), timeout, retryCount)
+        deferred.addCallback(self._convertToDict)
+        return deferred
 
     def getbulk(self, nonrepeaters, maxrepititions, oidStrs):
-        self.return_dct = True
         oids = [asOid(oidStr) for oidStr in oidStrs]
-        return self._getbulk(nonrepeaters, maxrepititions, oids)
+        deferred = self._getbulk(nonrepeaters, maxrepititions, oids)
+        deferred.addCallback(self._convertToDict)
+        return deferred
+
+    def _convertToDict(self, result):
+        def strKey(item):
+            return asOidStr(item[0]), item[1]
+
+        if isinstance(result, list):
+            return dict(map(strKey, result))
+        return result
 
 
 class _FakeProtocol:

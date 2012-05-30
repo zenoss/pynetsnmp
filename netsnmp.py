@@ -457,7 +457,7 @@ class Session(object):
         lib.setup_engineID(None, None)
         transport = lib.netsnmp_tdomain_transport(peername, 1, "udp")
         if not transport:
-            raise SnmpError("Unable to create transport", peername)
+            raise SnmpError("Unable to create transport {peername}".format(peername=peername))
         if fileno >= 0:
             os.dup2(fileno, transport.contents.sock)
         sess = netsnmp_session()
