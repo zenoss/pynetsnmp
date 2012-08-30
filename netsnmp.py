@@ -1,6 +1,7 @@
 import os
 from ctypes import *
 from ctypes.util import find_library
+import CONSTANTS
 from CONSTANTS import *
 
 # freebsd cannot manage a decent find_library
@@ -315,6 +316,9 @@ def decodeString(pdu):
         return string_at(pdu.val.bitstring, pdu.val_len)
     return ''
 
+_valueToConstant = dict([(chr(getattr(CONSTANTS, k)), k) for k in CONSTANTS.__dict__.keys() if isinstance(getattr(CONSTANTS,k), int) and getattr(CONSTANTS,k)>=0 and getattr(CONSTANTS,k) < 256])
+
+
 decoder = {
     chr(ASN_OCTET_STR): decodeString,
     # chr(ASN_BOOLEAN): lambda pdu: pdu.val.integer.contents.value,
@@ -336,6 +340,9 @@ def decodeType(var):
     decode = decoder.get(var.type, None)
     if not decode:
         # raise UnknownType(oid, ord(var.type))
+        log_oid = ".".join(map(str, oid))
+        log.debug("No decoder for oid %s type %s - returning None", log_oid, 
+                 _valueToConstant.get(var.type, var.type))
         return (oid, None)
     return oid, decode(var)
     

@@ -69,7 +69,8 @@ def updateReactor():
     "Add/remove event handlers for SNMP file descriptors and timers"
 
     fds, t = netsnmp.snmp_select_info()
-    log.debug('reactor settings: %r, %r', fds, t)
+    if log.getEffectiveLevel() < logging.DEBUG:
+        log.debug('reactor settings: %r, %r', fds, t)
     for fd in fds:
         if fd not in fdMap:
             reader = SnmpReader(fd)
