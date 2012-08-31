@@ -122,7 +122,7 @@ def _get_agent_spec(ipobj, interface, port):
 
 class Snmpv3Error(Exception):
 
-    def __init__(self, message):
+    def __init__(self, message, *args, **kwargs):
         self.message = message
 
     def __str__(self):
@@ -189,7 +189,7 @@ class AgentProxy(object):
         response = netsnmp.getResult(pdu)
 
         try:
-            d = self.defers.pop(pdu.reqid)
+            d, oids_requested = self.defers.pop(pdu.reqid)
         except KeyError:
             # We seem to end up here if we use bad credentials with authPriv.
             # The only reasonable thing to do is call all of the deferreds with
@@ -210,7 +210,7 @@ class AgentProxy(object):
             else:
                 message = "packet dropped"
 
-            for d in (d for d in self.defers.values() if not d.called):
+            for d in (d for d, rOids in self.defers.itervalues() if not d.called):
                 reactor.callLater(0, d.errback, failure.Failure(Snmpv3Error(message)))
 
             return
@@ -219,6 +219,12 @@ class AgentProxy(object):
             if isinstance(value, tuple):
                 value = asOidStr(value)
             result.append((oid, value))
+        if len(result)==1 and result[0][0] not in oids_requested:
+            usmStatsOidStr = asOidStr(result[0][0])
+            if usmStatsOidStr in USM_STATS_OIDS:
+                msg = USM_STATS_OIDS.get(usmStatsOidStr)
+                reactor.callLater(0, d.errback, failure.Failure(Snmpv3Error(msg)))
+                return
         if pdu.errstat != netsnmp.SNMP_ERR_NOERROR:
             # fixme: we can do better: use errback
             m = PDU_ERRORS.get(pdu.errstat, 'Unknown error (%d)' % pdu.errstat)
@@ -227,7 +233,7 @@ class AgentProxy(object):
         reactor.callLater(0, d.callback, result)
 
     def timeout_(self, reqid):
-        d = self.defers.pop(reqid)
+        d = self.defers.pop(reqid)[0]
         reactor.callLater(0, d.errback, failure.Failure(TimeoutError()))
 
     def _getCmdLineArgs(self):
@@ -275,7 +281,7 @@ class AgentProxy(object):
     def _get(self, oids, timeout=None, retryCount=None):
         d = defer.Deferred()
         try:
-            self.defers[self.session.get(oids)] = d
+            self.defers[self.session.get(oids)] = (d, oids)
         except Exception, ex:
             return defer.fail(ex)
         updateReactor()
@@ -284,7 +290,7 @@ class AgentProxy(object):
     def _walk(self, oid, timeout=None, retryCount=None):
         d = defer.Deferred()
         try:
-            self.defers[self.session.walk(oid)] = d
+            self.defers[self.session.walk(oid)] = (d, (oid,))
         except netsnmp.SnmpTimeoutError:
             return defer.fail(TimeoutError())
         except Exception, ex:
@@ -297,7 +303,7 @@ class AgentProxy(object):
         try:
             self.defers[self.session.getbulk(nonrepeaters,
                                              maxrepititions,
-                                             oids)] = d
+                                             oids)] = (d, oids)
         except Exception, ex:
             return defer.fail(ex)
         updateReactor()
