@@ -553,14 +553,27 @@ class Session(object):
             return result
 
 
+    def _handle_send_status(self, req, send_status, send_type):
+        if send_status == 0:
+            cliberr = c_int()
+            snmperr = c_int()
+            errstring = c_char_p()
+            lib.snmp_error(self.sess, byref(cliberr), byref(snmperr), byref(errstring));
+            fmt = "Session.%s: snmp_send cliberr=%s, snmperr=%s, errstring=%s"
+            msg = fmt % (send_type, cliberr.value, snmperr.value, errstring.value)
+            log.debug(msg)
+            lib.snmp_free_pdu(req)
+            if snmperr.value == SNMPERR_TIMEOUT:
+                raise SnmpTimeoutError()
+            raise SnmpError(msg)
+
     def get(self, oids):
         req = self._create_request(SNMP_MSG_GET)
         for oid in oids:
             oid = mkoid(oid)
             lib.snmp_add_null_var(req, oid, len(oid))
-        if not lib.snmp_send(self.sess, req):
-            lib.snmp_free_pdu(req)
-            raise SnmpError("snmp_send")
+        send_status = lib.snmp_send(self.sess, req)
+        self._handle_send_status(req, send_status, 'get')
         return req.contents.reqid
 
     def getbulk(self, nonrepeaters, maxrepetitions, oids):
@@ -571,9 +584,8 @@ class Session(object):
         for oid in oids:
             oid = mkoid(oid)
             lib.snmp_add_null_var(req, oid, len(oid))
-        if not lib.snmp_send(self.sess, req):
-            lib.snmp_free_pdu(req)
-            raise SnmpError("snmp_send")
+        send_status = lib.snmp_send(self.sess, req)
+        self._handle_send_status(req, send_status, 'get')
         return req.contents.reqid
 
     def walk(self, root):
@@ -582,18 +594,7 @@ class Session(object):
         lib.snmp_add_null_var(req, oid, len(oid))
         send_status = lib.snmp_send(self.sess, req)
         log.debug("Session.walk: send_status=%s" % send_status)
-        if send_status == 0:
-            cliberr = c_int()
-            snmperr = c_int()
-            errstring = c_char_p()
-            lib.snmp_error(self.sess, byref(cliberr), byref(snmperr), byref(errstring));
-            fmt = "Session.walk: snmp_send cliberr=%s, snmperr=%s, errstring=%s"
-            msg = fmt % (cliberr.value, snmperr.value, errstring.value)
-            log.debug(msg)
-            lib.snmp_free_pdu(req)
-            if snmperr.value == SNMPERR_TIMEOUT:
-                raise SnmpTimeoutError()
-            raise SnmpError(msg)
+        self._handle_send_status(req, send_status, 'walk')
         return req.contents.reqid
 
 
