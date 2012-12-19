@@ -1,4 +1,5 @@
 import netsnmp
+import struct
 from CONSTANTS import *
 
 from ipaddr import IPAddress
@@ -183,13 +184,36 @@ class AgentProxy(object):
         self.defers = {}
         self.session = None
 
+    def _signSafePop(self, d, intkey):
+        """
+        Attempt to pop the item at intkey from dictionary d. Upon failure, try to convert intkey
+        from a signed to an unsigned integer and try to pop again.
+
+        This addresses potential integer rollover issues caused by the fact that netsnmp_pdu.reqid
+        is a c_long and the netsnmp_callback function pointer definition specifies it as a c_int.
+        See ZEN-4481.
+        """
+        try:
+            return d.pop(intkey)
+        except KeyError as ex:
+            if intkey < 0:
+                log.debug("Negative ID for _signSafePop: %d" % intkey)
+                #convert to unsigned, try that key
+                uintkey = struct.unpack("I", struct.pack("i", intkey))[0]
+                try:
+                    return d.pop(uintkey)
+                except KeyError:
+                    #nothing by the unsigned key either, throw the original KeyError for consistency
+                    raise ex
+            raise
+
     def callback(self, pdu):
         """netsnmp session callback"""
         result = []
         response = netsnmp.getResult(pdu)
 
         try:
-            d, oids_requested = self.defers.pop(pdu.reqid)
+            d, oids_requested = self._signSafePop(self.defers, pdu.reqid)
         except KeyError:
             # We seem to end up here if we use bad credentials with authPriv.
             # The only reasonable thing to do is call all of the deferreds with
@@ -233,7 +257,7 @@ class AgentProxy(object):
         reactor.callLater(0, d.callback, result)
 
     def timeout_(self, reqid):
-        d = self.defers.pop(reqid)[0]
+        d = self._signSafePop(self.defers, pdu.reqid)[0]
         reactor.callLater(0, d.errback, failure.Failure(TimeoutError()))
 
     def _getCmdLineArgs(self):
