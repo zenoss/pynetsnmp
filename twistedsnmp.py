@@ -257,7 +257,7 @@ class AgentProxy(object):
         reactor.callLater(0, d.callback, result)
 
     def timeout_(self, reqid):
-        d = self._signSafePop(self.defers, pdu.reqid)[0]
+        d = self._signSafePop(self.defers, reqid)[0]
         reactor.callLater(0, d.errback, failure.Failure(TimeoutError()))
 
     def _getCmdLineArgs(self):
