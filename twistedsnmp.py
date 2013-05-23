@@ -249,6 +249,11 @@ class AgentProxy(object):
                 msg = USM_STATS_OIDS.get(usmStatsOidStr)
                 reactor.callLater(0, d.errback, failure.Failure(Snmpv3Error(msg)))
                 return
+	    elif  usmStatsOidStr == ".1.3.6.1.6.3.15.1.1.2.0":
+                # we may get a subsequent snmp result with the correct value
+                # if not the timeout will be called at some point
+                self.defers[pdu.reqid] = (d, oids_requested)
+                return
         if pdu.errstat != netsnmp.SNMP_ERR_NOERROR:
             # fixme: we can do better: use errback
             m = PDU_ERRORS.get(pdu.errstat, 'Unknown error (%d)' % pdu.errstat)
