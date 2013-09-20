@@ -6,6 +6,7 @@ from CONSTANTS import *
 
 # freebsd cannot manage a decent find_library
 import sys
+
 if sys.platform.find('free') > -1:
     find_library_orig = find_library
     def find_library(name):
@@ -421,6 +422,8 @@ def initialize_session(sess, cmdLineArgs, kw):
             cmdLine.append(kw['peername'])
             del kw['peername']
         args = parse_args(cmdLine, byref(sess))
+    else:
+        lib.snmp_sess_init(byref(sess))
     for attr, value in kw.items():
         setattr(sess, attr, value)
     return args
@@ -437,12 +440,11 @@ class Session(object):
 
     def open(self):
         sess = netsnmp_session()
-        lib.snmp_sess_init(byref(sess))
         self.args = initialize_session(sess, self.cmdLineArgs, self.kw)
         sess.callback = _callback
         sess.callback_magic = id(self)
-        sess = lib.snmp_open(byref(sess))
-        self.sess = sess # cast(sess, POINTER(netsnmp_session))
+        ref = byref(sess)
+        self.sess = lib.snmp_open(ref)
         if not self.sess:
             raise SnmpError('snmp_open')
         sessionMap[id(self)] = self
