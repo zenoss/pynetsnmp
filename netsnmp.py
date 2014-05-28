@@ -56,7 +56,6 @@ u_char = c_byte
 class netsnmp_session(Structure): pass
 class netsnmp_pdu(Structure): pass
 class netsnmp_transport(Structure): pass
-
 # int (*netsnmp_callback) (int, netsnmp_session *, int, netsnmp_pdu *, void *);
 netsnmp_callback = CFUNCTYPE(c_int,
                              c_int, POINTER(netsnmp_session),
@@ -71,17 +70,24 @@ float_version = float('.'.join(version.split('.')[:2]))
 _netsnmp_str_version = tuple(str(v) for v in version.split('.'))
 localname = []
 paramName = []
+transportConfig = []
 if float_version < 5.099:
     raise ImportError("netsnmp version 5.1 or greater is required")
 if float_version > 5.199:
     localname = [('localname', c_char_p)]
     if float_version > 5.299:
         paramName = [('paramName', c_char_p)]
-# Versions >= 5.6 and < 5.6.1.1 broke binary compatibility and changed oid type from c_long to c_uint32. This works
-# around the issue for these platforms to allow things to work properly.
-if _netsnmp_str_version >= ('5','6') and _netsnmp_str_version <= ('5','6','1','1'):
-    oid = c_uint32
+if _netsnmp_str_version >= ('5','6'):
+    # Versions >= 5.6 and < 5.6.1.1 broke binary compatibility and changed oid type from c_long to c_uint32. This works
+    # around the issue for these platforms to allow things to work properly.
+    if _netsnmp_str_version <= ('5','6','1','1'):
+        oid = c_uint32
 
+    # Versions >= 5.6 broke binary compatibility by adding transport specific configuration
+    class netsnmp_container_s(Structure): pass
+    transportConfig = [('transport_configuration', POINTER(netsnmp_container_s))]
+
+# Version 
 netsnmp_session._fields_ = [
         ('version', c_long),
         ('retries', c_int),
@@ -129,12 +135,14 @@ netsnmp_session._fields_ = [
         ('securityPrivLocalKey', c_char_p),
         ('securityPrivLocalKeyLen', c_size_t),
 
-        ] + paramName + [
-
         ('securityModel', c_int),
         ('securityLevel', c_int),
 
+        ] + paramName + [
+
         ('securityInfo', c_void_p),
+
+        ] + transportConfig + [
 
         ('myvoid', c_void_p),
         ]
