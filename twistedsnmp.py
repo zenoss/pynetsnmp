@@ -220,14 +220,19 @@ class AgentProxy(object):
             # Snmpv3Errors.
             for usmStatsOid, count in response:
                 usmStatsOidStr = asOidStr(usmStatsOid)
-                
+
                 if usmStatsOidStr == ".1.3.6.1.6.3.15.1.1.2.0":
                     # Some devices use usmStatsNotInTimeWindows as a normal part of the SNMPv3 handshake (JIRA-1565)
                     # net-snmp automatically retries the request with the previous request_id and the values for
                     # msgAuthoritativeEngineBoots and msgAuthoritativeEngineTime from this error packet
                     log.debug("Received a usmStatsNotInTimeWindows error. Some devices use usmStatsNotInTimeWindows as a normal part of the SNMPv3 handshake.")
                     return
-                
+                    
+                if usmStatsOidStr == ".1.3.6.1.2.1.1.1.0":
+                    # Some devices (Cisco Nexus/MDS) use sysDescr as a normal part of the SNMPv3 handshake (JIRA-7943)
+                    log.debug("Received sysDescr during handshake. Some devices use sysDescr as a normal part of the SNMPv3 handshake.")
+                    return
+
                 default_msg = "packet dropped (OID: {0})".format(usmStatsOidStr)
                 message = USM_STATS_OIDS.get(usmStatsOidStr, default_msg)
                 break
