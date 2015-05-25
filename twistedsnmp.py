@@ -265,8 +265,14 @@ class AgentProxy(object):
         if pdu.errstat != netsnmp.SNMP_ERR_NOERROR:
             pduError = PDU_ERRORS.get(pdu.errstat, 'Unknown error (%d)' % pdu.errstat)
             message = "Packet for %s has error: %s" % (self.ip, pduError)
-            reactor.callLater(0, d.errback, failure.Failure(SnmpError(message)))
-            return
+            if pdu.errstat in (SNMP_ERR_NOACCESS, 
+                               SNMP_ERR_RESOURCEUNAVAILABLE, 
+                               SNMP_ERR_AUTHORIZATIONERROR,):
+                reactor.callLater(0, d.errback, failure.Failure(SnmpError(message)))
+                return
+            else:
+                result = []
+                log.warning(message + '. OIDS: {0}'.format(oids_requested))
 
         reactor.callLater(0, d.callback, result)
 
