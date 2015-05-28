@@ -89,7 +89,6 @@ def updateReactor():
     if t is not None:
         timer.callLater = reactor.callLater(t, checkTimeouts)
 
-class SnmpError(Exception): pass
 class SnmpNameError(Exception):
     def __init__(self, oid):
         Exception.__init__(self, 'Bad Name', oid)
