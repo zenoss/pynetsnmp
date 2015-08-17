@@ -28,7 +28,7 @@ def find_library(name):
         if os.path.exists(pathName):
             return pathName
     return find_library_orig(name)
-    
+
 import logging
 log = logging.getLogger('zen.netsnmp')
 
@@ -87,7 +87,7 @@ if _netsnmp_str_version >= ('5','6'):
     class netsnmp_container_s(Structure): pass
     transportConfig = [('transport_configuration', POINTER(netsnmp_container_s))]
 
-# Version 
+# Version
 netsnmp_session._fields_ = [
         ('version', c_long),
         ('retries', c_int),
@@ -108,7 +108,7 @@ netsnmp_session._fields_ = [
         ('community_len', size_t),
         ('rcvMsgMaxSize', size_t),
         ('sndMsgMaxSize', size_t),
-        
+
         ('isAuthoritative', u_char),
         ('contextEngineID', u_char_p),
         ('contextEngineIDLen', size_t),
@@ -120,7 +120,7 @@ netsnmp_session._fields_ = [
         ('securityEngineIDLen', size_t),
         ('securityName', c_char_p),
         ('securityNameLen', size_t),
-        
+
         ('securityAuthProto', POINTER(oid)),
         ('securityAuthProtoLen', size_t),
         ('securityAuthKey', u_char * USM_AUTH_KU_LEN),
@@ -167,7 +167,7 @@ class netsnmp_vardata(Union):
         ('counter64', POINTER(counter64)),
         ('floatVal', POINTER(c_float)),
         ('doubleVal', POINTER(c_double)),
-        ]    
+        ]
 
 class netsnmp_variable_list(Structure):
     pass
@@ -184,7 +184,7 @@ netsnmp_variable_list._fields_ = [
         ('dataFreeHook', dataFreeHook),
         ('index', c_int),
         ]
-    
+
 netsnmp_pdu._fields_ = [
         ('version', c_long ),
         ('command', c_int ),
@@ -226,7 +226,7 @@ netsnmp_pdu._fields_ = [
 
 netsnmp_pdu_p = POINTER(netsnmp_pdu)
 
-# Redirect netsnmp logging to our log 
+# Redirect netsnmp logging to our log
 class netsnmp_log_message(Structure): pass
 netsnmp_log_message_p = POINTER(netsnmp_log_message)
 log_callback = CFUNCTYPE(c_int, c_int,
@@ -350,11 +350,11 @@ def decodeType(var):
     if not decode:
         # raise UnknownType(oid, ord(var.type))
         log_oid = ".".join(map(str, oid))
-        log.debug("No decoder for oid %s type %s - returning None", log_oid, 
+        log.debug("No decoder for oid %s type %s - returning None", log_oid,
                  _valueToConstant.get(var.type, var.type))
         return (oid, None)
     return oid, decode(var)
-    
+
 
 def getResult(pdu):
     result = []
@@ -458,6 +458,8 @@ class Session(object):
         sessionMap[id(self)] = self
 
     def awaitTraps(self, peername, fileno = -1, pre_parse_callback=None, debug=False):
+        if float_version > 5.299:
+            lib.netsnmp_ds_set_string(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_APPTYPE, "pynetsnmp")
         lib.init_usm()
         if debug:
             lib.debug_register_tokens("snmp_parse") # or "ALL" for everything
@@ -478,7 +480,7 @@ class Session(object):
         if fileno >= 0:
             os.dup2(fileno, transport.contents.sock)
         sess = netsnmp_session()
-        
+
         self.sess = pointer(sess)
         lib.snmp_sess_init(self.sess)
         sess.peername = SNMP_DEFAULT_PEERNAME

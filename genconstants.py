@@ -48,7 +48,7 @@ def make_imports():
         write_output(out, 'NULL', 'None')
         paths = []
         paths.extend('library/' + x for x in
-            ('callback.h','asn1.h','snmp.h','snmp_api.h','snmp_impl.h','snmp_logging.h'))
+            ('callback.h','asn1.h','snmp.h','snmp_api.h','snmp_impl.h','snmp_logging.h','default_store.h'))
         paths.append('types.h')
         for path in paths:
             process(path, out)
