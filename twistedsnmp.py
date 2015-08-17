@@ -89,7 +89,6 @@ def updateReactor():
     if t is not None:
         timer.callLater = reactor.callLater(t, checkTimeouts)
 
-class SnmpError(Exception): pass
 class SnmpNameError(Exception):
     def __init__(self, oid):
         Exception.__init__(self, 'Bad Name', oid)
@@ -121,7 +120,7 @@ def _get_agent_spec(ipobj, interface, port):
         raise RuntimeError("Cannot create agent specification for IP address version: %s" % ipobj.version)
     return agent
 
-class Snmpv3Error(Exception):
+class SnmpError(Exception):
 
     def __init__(self, message, *args, **kwargs):
         self.message = message
@@ -131,6 +130,9 @@ class Snmpv3Error(Exception):
 
     def __repr__(self):
         return self.message
+
+class Snmpv3Error(SnmpError): 
+    pass
 
 USM_STATS_OIDS = {
 
@@ -254,16 +256,23 @@ class AgentProxy(object):
                 msg = USM_STATS_OIDS.get(usmStatsOidStr)
                 reactor.callLater(0, d.errback, failure.Failure(Snmpv3Error(msg)))
                 return
-	    elif  usmStatsOidStr == ".1.3.6.1.6.3.15.1.1.2.0":
+            elif usmStatsOidStr == ".1.3.6.1.6.3.15.1.1.2.0":
                 # we may get a subsequent snmp result with the correct value
                 # if not the timeout will be called at some point
                 self.defers[pdu.reqid] = (d, oids_requested)
                 return
         if pdu.errstat != netsnmp.SNMP_ERR_NOERROR:
-            # fixme: we can do better: use errback
-            m = PDU_ERRORS.get(pdu.errstat, 'Unknown error (%d)' % pdu.errstat)
-            # log.warning("Packet for %s has error: %s", self.ip, m)
-            result = []
+            pduError = PDU_ERRORS.get(pdu.errstat, 'Unknown error (%d)' % pdu.errstat)
+            message = "Packet for %s has error: %s" % (self.ip, pduError)
+            if pdu.errstat in (SNMP_ERR_NOACCESS, 
+                               SNMP_ERR_RESOURCEUNAVAILABLE, 
+                               SNMP_ERR_AUTHORIZATIONERROR,):
+                reactor.callLater(0, d.errback, failure.Failure(SnmpError(message)))
+                return
+            else:
+                result = []
+                log.warning(message + '. OIDS: {0}'.format(oids_requested))
+
         reactor.callLater(0, d.callback, result)
 
     def timeout_(self, reqid):
