@@ -330,6 +330,15 @@ class AgentProxy(object):
         updateReactor()
         return d
 
+    def _set(self, oids, timeout=None, retryCount=None):
+        d = defer.Deferred()
+        try:
+            self.defers[self.session.set(oids)] = (d, oids)
+        except Exception, ex:
+            return defer.fail(ex)
+        updateReactor()
+        return d
+
     def _walk(self, oid, timeout=None, retryCount=None):
         d = defer.Deferred()
         try:
@@ -352,7 +361,6 @@ class AgentProxy(object):
         updateReactor()
         return d
 
-
     def getTable(self, oids, **kw):
         from tableretriever import TableRetriever
         try:
@@ -365,6 +373,12 @@ class AgentProxy(object):
     def get(self, oidStrs, timeout=None, retryCount=None):
         oids = [asOid(oidStr) for oidStr in oidStrs]
         deferred = self._get(oids, timeout, retryCount)
+        deferred.addCallback(self._convertToDict)
+        return deferred
+
+    def set(self, oidStrs, timeout=None, retryCount=None):
+        oids = [(asOid(oidStr), _type, value) for oidStr, _type, value in oidStrs]
+        deferred = self._set(oids, timeout, retryCount)
         deferred.addCallback(self._convertToDict)
         return deferred
 

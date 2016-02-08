@@ -588,6 +588,28 @@ class Session(object):
         self._handle_send_status(req, send_status, 'get')
         return req.contents.reqid
 
+    def set(self, oids):
+
+        """
+        oids is a tuple that contains (oid as tuple, type of value as string, value as string)
+
+            TYPE: one of i, u, t, a, o, s, x, d, b
+
+                i: INTEGER, u: unsigned INTEGER, t: TIMETICKS, a: IPADDRESS
+
+                o: OBJID, s: STRING, x: HEX STRING, d: DECIMAL STRING, b: BITS
+
+                U: unsigned int64, I: signed int64, F: float, D: double
+        """
+        req = self._create_request(SNMP_MSG_SET)
+        for oid, _type, value in oids:
+            oid = mkoid(oid)
+            lib.snmp_add_var(req, oid, len(oid), _type, value)
+
+        send_status = lib.snmp_send(self.sess, req)
+        self._handle_send_status(req, send_status, 'set')
+        return req.contents.reqid
+
     def getbulk(self, nonrepeaters, maxrepetitions, oids):
         req = self._create_request(SNMP_MSG_GETBULK)
         req = cast(req, POINTER(netsnmp_pdu))
