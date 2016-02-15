@@ -6,7 +6,6 @@ from ipaddr import IPAddress
 
 from twisted.internet import reactor
 from twisted.internet.error import TimeoutError
-from twisted.internet.interfaces import IReadDescriptor
 from twisted.python import failure
 from twisted.internet import defer
 
@@ -47,7 +46,7 @@ def checkTimeouts():
     updateReactor()
 
 
-class SnmpReader: #(IReadDescriptor):
+class SnmpReader:
     "Respond to input events"
 
     def logPrefix(self):
@@ -131,7 +130,7 @@ class SnmpError(Exception):
     def __repr__(self):
         return self.message
 
-class Snmpv3Error(SnmpError): 
+class Snmpv3Error(SnmpError):
     pass
 
 USM_STATS_OIDS = {
@@ -156,26 +155,27 @@ USM_STATS_OIDS = {
 
 class AgentProxy(object):
     """The public methods on AgentProxy (get, walk, getbulk) expect input OIDs
-    to be strings, and the result they produce is a dictionary.  The 
+    to be strings, and the result they produce is a dictionary.  The
     dictionary keys are OID strings and the values are the values returned by
     the SNMP requests.
-    
+
     The private methods (_get, _walk, _getbulk) expect input OIDs to be tuples
-    of integers.  These methods generate a result that is a list of pairs, 
+    of integers.  These methods generate a result that is a list of pairs,
     each pair consisting of the OID string and the value that is returned by
-    the SNMP query. The list is ordered correctly by the OID (i.e. it is not 
+    the SNMP query. The list is ordered correctly by the OID (i.e. it is not
     ordered by the OID string)."""
 
     def __init__(self,
                  ip,
-                 port=161, 
+                 port=161,
                  community='public',
-                 snmpVersion = '1', 
+                 snmpVersion = '1',
                  protocol=None,
                  allowCache = False,
                  timeout = 1.5,
                  tries = 3,
-                 cmdLineArgs = ()):
+                 cmdLineArgs = (),
+                 freeEtimelist=False):
         self.ip = ip
         self.port = port
         self.community = community
@@ -183,6 +183,7 @@ class AgentProxy(object):
         self.timeout = timeout
         self.tries = tries
         self.cmdLineArgs = cmdLineArgs
+        self.freeEtimelist = freeEtimelist
         self.defers = {}
         self.session = None
 
@@ -229,7 +230,7 @@ class AgentProxy(object):
                     # msgAuthoritativeEngineBoots and msgAuthoritativeEngineTime from this error packet
                     log.debug("Received a usmStatsNotInTimeWindows error. Some devices use usmStatsNotInTimeWindows as a normal part of the SNMPv3 handshake.")
                     return
-                    
+
                 if usmStatsOidStr == ".1.3.6.1.2.1.1.1.0":
                     # Some devices (Cisco Nexus/MDS) use sysDescr as a normal part of the SNMPv3 handshake (JIRA-7943)
                     log.debug("Received sysDescr during handshake. Some devices use sysDescr as a normal part of the SNMPv3 handshake.")
@@ -264,8 +265,8 @@ class AgentProxy(object):
         if pdu.errstat != netsnmp.SNMP_ERR_NOERROR:
             pduError = PDU_ERRORS.get(pdu.errstat, 'Unknown error (%d)' % pdu.errstat)
             message = "Packet for %s has error: %s" % (self.ip, pduError)
-            if pdu.errstat in (SNMP_ERR_NOACCESS, 
-                               SNMP_ERR_RESOURCEUNAVAILABLE, 
+            if pdu.errstat in (SNMP_ERR_NOACCESS,
+                               SNMP_ERR_RESOURCEUNAVAILABLE,
                                SNMP_ERR_AUTHORIZATIONERROR,):
                 reactor.callLater(0, d.errback, failure.Failure(SnmpError(message)))
                 return
@@ -306,7 +307,8 @@ class AgentProxy(object):
         return cmdLineArgs
 
     def open(self):
-        self.session = netsnmp.Session(cmdLineArgs=self._getCmdLineArgs())
+        self.session = netsnmp.Session(cmdLineArgs=self._getCmdLineArgs(),
+                                       freeEtimelist=self.freeEtimelist)
         self.session.callback = self.callback
         self.session.timeout = self.timeout_
         self.session.open()
@@ -361,7 +363,7 @@ class AgentProxy(object):
             return defer.fail(ex)
         updateReactor()
         return t()
-        
+
     def get(self, oidStrs, timeout=None, retryCount=None):
         oids = [asOid(oidStr) for oidStr in oidStrs]
         deferred = self._get(oids, timeout, retryCount)
