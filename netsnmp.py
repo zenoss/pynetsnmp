@@ -515,7 +515,8 @@ class Session(object):
                     log.debug("create_users: could not create user: %s: (%s: %s)" % (user, e.__class__.__name__, e))
 
     def sendTrap(self, trapoid, varbinds=None):
-        pdu = lib.snmp_pdu_create(SNMP_MSG_TRAP2)
+        trapType = SNMP_MSG_TRAP if '-v1' in self.cmdLineArgs else SNMP_MSG_TRAP2
+        pdu = lib.snmp_pdu_create(trapType)
 
         # sysUpTime is mandatory on V2Traps.
         objid_sysuptime = mkoid((1,3,6,1,2,1,1,3,0))
