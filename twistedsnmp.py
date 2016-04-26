@@ -185,6 +185,7 @@ class AgentProxy(object):
         self.cmdLineArgs = cmdLineArgs
         self.defers = {}
         self.session = None
+        self.abandoned = False
 
     def _signSafePop(self, d, intkey):
         """
@@ -242,6 +243,7 @@ class AgentProxy(object):
                 message = "packet dropped"
 
             for d in (d for d, rOids in self.defers.itervalues() if not d.called):
+                self.abandon()
                 reactor.callLater(0, d.errback, failure.Failure(Snmpv3Error(message)))
 
             return
@@ -253,6 +255,7 @@ class AgentProxy(object):
         if len(result)==1 and result[0][0] not in oids_requested:
             usmStatsOidStr = asOidStr(result[0][0])
             if usmStatsOidStr in USM_STATS_OIDS:
+                self.abandon()
                 msg = USM_STATS_OIDS.get(usmStatsOidStr)
                 reactor.callLater(0, d.errback, failure.Failure(Snmpv3Error(msg)))
                 return
@@ -312,12 +315,28 @@ class AgentProxy(object):
         self.session.open()
         updateReactor()
 
+    def abandon(self):
+        """
+        netsnmp appears to deallocate sessions upon receipt of an SNMPv3
+        authentication error. When that occurs, we can't trust any pointers we
+        may have to those objects, and should slash and burn our references.
+
+        See ZEN-23056.
+        """
+        if not self.abandoned:
+            self.session.abandon()
+            self.abandoned = True
+
     def close(self):
         # Changing this to something sane causes zenperfsnmp to blow up
         # Trac http://dev.zenoss.org/trac/ticket/6354
         assert self.session
 
-        self.session.close()
+        # ZEN-23056: We can't count on this reference to still be a session, so
+        # we can't close it
+        if not self.abandoned:
+            self.session.close()
+
         self.session = None
         updateReactor()
 
