@@ -536,6 +536,19 @@ class Session(object):
 
         lib.snmp_send(self.sess, pdu)
 
+    def abandon(self):
+        """
+        netsnmp appears to deallocate sessions upon receipt of an SNMPv3
+        authentication error. When that occurs, we can't trust any pointers we
+        may have to those objects, and should slash and burn our references.
+
+        See ZEN-23056.
+        """
+        log.debug("Abandoning session %s" % id(self))
+        sessionMap.pop(id(self))
+        self.sess = None
+        self.args = None
+
     def close(self):
         if not self.sess: return
         if id(self) not in sessionMap:
