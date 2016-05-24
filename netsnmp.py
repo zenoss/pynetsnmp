@@ -518,6 +518,9 @@ class Session(object):
         if '-v1' in self.cmdLineArgs:
             pdu = lib.snmp_pdu_create(SNMP_MSG_TRAP)
             if hasattr(self, 'agent_addr'):
+                # pdu.contents is a netsnmp_pdu, defined above, therefore its fields are c types
+                # self.agent_addr is an ipv4 address, and the v1 trap wants a c array of 4 unsigned bytes,
+                # so chop it up, make the octets ints, then a bytearray from that will cast.
                 pdu.contents.agent_addr = (c_ubyte*4)(*(bytearray([int(x) for x in self.agent_addr.split('.')])))
             pdu.contents.trap_type = 6
             pdu.contents.specific_type = 0
