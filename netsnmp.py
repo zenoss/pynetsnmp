@@ -515,14 +515,25 @@ class Session(object):
                     log.debug("create_users: could not create user: %s: (%s: %s)" % (user, e.__class__.__name__, e))
 
     def sendTrap(self, trapoid, varbinds=None):
-        trapType = SNMP_MSG_TRAP if '-v1' in self.cmdLineArgs else SNMP_MSG_TRAP2
-        pdu = lib.snmp_pdu_create(trapType)
+        if '-v1' in self.cmdLineArgs:
+            pdu = lib.snmp_pdu_create(SNMP_MSG_TRAP)
+            if hasattr(self, 'agent_addr'):
+                # pdu.contents is a netsnmp_pdu, defined above, therefore its fields are c types
+                # self.agent_addr is an ipv4 address, and the v1 trap wants a c array of 4 unsigned bytes,
+                # so chop it up, make the octets ints, then a bytearray from that will cast.
+                pdu.contents.agent_addr = (c_ubyte*4)(*(bytearray([int(x) for x in self.agent_addr.split('.')])))
+            pdu.contents.trap_type = 6
+            pdu.contents.specific_type = 0
+            pdu.contents.time = lib.get_uptime()
 
-        # sysUpTime is mandatory on V2Traps.
-        objid_sysuptime = mkoid((1,3,6,1,2,1,1,3,0))
-        uptime = "%ld" % lib.get_uptime()
-        lib.snmp_add_var(
-            pdu, objid_sysuptime, len(objid_sysuptime), 't', uptime)
+        else:
+            pdu = lib.snmp_pdu_create(SNMP_MSG_TRAP2)
+
+            # sysUpTime is mandatory on V2Traps.
+            objid_sysuptime = mkoid((1,3,6,1,2,1,1,3,0))
+            uptime = "%ld" % lib.get_uptime()
+            lib.snmp_add_var(
+                pdu, objid_sysuptime, len(objid_sysuptime), 't', uptime)
 
         # snmpTrapOID is mandatory on V2Traps.
         objid_snmptrap = mkoid((1,3,6,1,6,3,1,1,4,1,0))
