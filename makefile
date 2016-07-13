@@ -12,7 +12,7 @@ build-bdist:
 		-v $(PWD):/mnt \
 		--user $(UID):$(GID) \
 		$(TAG) \
-		/bin/bash -c "cd /mnt && python setup.py bdist"
+		/bin/bash -c "cd /mnt && python setup.py bdist_wheel"
 
 build-sdist:
 	@echo "Building a source distribution of pynetsnmp"
@@ -26,4 +26,4 @@ build-sdist:
 build: build-bdist
 
 clean:
-	rm -rf *.pyc MANIFEST dist build
+	rm -rf *.pyc MANIFEST dist build pynetsnmp.egg-info

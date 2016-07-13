@@ -1,34 +1,22 @@
-from distutils.command.build import build as _build
-from distutils.command.clean import clean as _clean
-from distutils.core import setup
+from setuptools import setup, find_packages
 
-import os
+# 'make build' will build the pynetsnmp and copy them to the needed locations.
 
-import genconstants
+setup(
+    name = "pynetsnmp",
+    version = "0.40.6",
+    packages=find_packages(),
+    install_requires = [
+        'setuptools',
+    ],
+    include_package_data=True,
+    # metadata for upload to PyPI
+    author = "Zenoss",
+    author_email = "support@zenoss.com",
+    description = "ctypes wrapper for net-snmp.",
+    license = "GPLv2 or later",
+    keywords = "zenoss pynetsnmp snmp",
+    url = "http://www.zenoss.com/",
+    zip_safe=False
+)
 
-from version import VERSION
-
-class clean(_clean):
-    def run(self):
-        if os.path.exists('/usr/include/net-snmp/library/snmp_api.h'):
-            for filename in "CONSTANTS.py", "CONSTANTS.pyc":
-                if os.path.exists(filename):
-                    os.remove(filename)
-                _clean.run(self)
-
-class build(_build):
-    def run(self):
-        if os.path.exists('/usr/include/net-snmp/library/snmp_api.h'):
-            genconstants.make_imports()
-            _build.run(self)
-
-if __name__=='__main__':
-    setup(name='pynetsnmp',
-          version=VERSION,
-          description='ctypes wrapper for net-snmp',
-          author='Eric C. Newton',
-          author_email='ecn@zenoss.com',
-          cmdclass={'build': build, 'clean' : clean},
-          package_dir = {'pynetsnmp':'.',},
-          packages = ['pynetsnmp',],
-          )
