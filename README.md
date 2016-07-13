@@ -45,7 +45,7 @@ the version in the `develop` should be `0.40.5-dev`.
   `<release_name>` will be the new version in `master`, i.e. `0.40.5`.
   *  `git flow release start <release_name>`
 
-4. Update the `VERSION` variable in the `version.py` file. e.g set it to `0.40.5`
+4. Update the `VERSION` variable in the `setup.py` file. e.g set it to `0.40.5`
 
 5. run `make` to make sure everything builds properly.
 
@@ -54,7 +54,7 @@ the version in the `develop` should be `0.40.5-dev`.
   * `git flow release finish <release_name>`
   * `git push origin --tags`
 
-7. You will be on the `develop` branch again. While on `develop` branch, edit the the `VERSION` variable in the `version.py` file to
+7. You will be on the `develop` branch again. While on `develop` branch, edit the the `VERSION` variable in the `setup.py` file to
 be the next development version. For example, if you just released version 0.40.5, then change the `VERSION` variable to
 `0.40.6-dev`.
 
