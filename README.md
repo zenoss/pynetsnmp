@@ -7,7 +7,6 @@ To buid a dev artifact for testing locally, use
   * `git pull origin devlop`
   * `make clean build`
 
-Cdd
 The result should be a file named something like `pynetsnmp-0.40.5-dev.linux-x86_64.tar.gz` artifact in the `dist` subdirectory.
 If you need to make changes, create a feature branch like you would for any other kind of change, modify the requirements
 definition as necessary, use `make clean build` to build a new tar file and then test it as necessary.
