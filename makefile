@@ -1,6 +1,6 @@
 # Define the image name, version and tag name for the docker build image
 IMAGENAME = build-tools
-VERSION = 0.0.2
+VERSION = 0.0.5
 TAG = zenoss/$(IMAGENAME):$(VERSION)
 
 UID := $(shell id -u)
