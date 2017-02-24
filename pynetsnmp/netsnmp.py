@@ -472,7 +472,7 @@ class Session(object):
             lib.netsnmp_udp6_ctor()
         else:
             log.debug("Cannot find constructor function for UDP/IPv6 transport domain object.")
-        lib.init_snmpv3(None)
+        lib.init_snmp("zenoss_app")
         lib.setup_engineID(None, None)
         transport = lib.netsnmp_tdomain_transport(peername, 1, "udp")
         if not transport:
@@ -502,13 +502,14 @@ class Session(object):
         for user in users:
             if user.version == 3:
                 try:
-                    line = " ".join(["-e",
-                                     user.engine_id,
-                                     user.username,
-                                     user.authentication_type, # MD5 or SHA
-                                     user.authentication_passphrase,
-                                     user.privacy_protocol, # DES or AES
-                                     user.privacy_passphrase])
+                    line = ""
+                    if user.engine_id:
+                        line = "-e {} ".format(user.engine_id)
+                    line += " ".join([user.username,
+                                      user.authentication_type, # MD5 or SHA
+                                      user.authentication_passphrase,
+                                      user.privacy_protocol, # DES or AES
+                                      user.privacy_passphrase])
                     lib.usm_parse_create_usmUser("createUser", line)
                     log.debug("create_users: created user: %s" % user)
                 except StandardError, e:
