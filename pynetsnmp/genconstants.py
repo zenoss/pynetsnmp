@@ -15,7 +15,7 @@ def write_output(f, name, value):
     try:
         exec(assignment, global_vars, local_vars)
         f.write(assignment)
-    except Exception, e:
+    except Exception as e:
         log.error('Invalid python statement: %s, %s', assignment.strip(), e)
 
 def process(f, output):
