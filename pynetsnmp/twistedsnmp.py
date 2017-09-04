@@ -2,7 +2,10 @@ import netsnmp
 import struct
 from CONSTANTS import *
 
-from ipaddr import IPAddress
+try:
+    from ipaddr import IPAddress
+except ImportError:
+    from ipaddress import ip_address as IPAddress
 
 from twisted.internet import reactor
 from twisted.internet.error import TimeoutError
