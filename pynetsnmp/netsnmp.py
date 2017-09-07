@@ -385,7 +385,7 @@ def _callback(operation, sp, reqid, pdu, magic):
             sess.timeout(reqid)
         else:
             log.error("Unknown operation: %d", operation)
-    except Exception, ex:
+    except Exception as ex:
         log.exception("Exception in _callback %s", ex)
     return 1
 _callback = netsnmp_callback(_callback)
@@ -512,7 +512,7 @@ class Session(object):
                                       user.privacy_passphrase])
                     lib.usm_parse_create_usmUser("createUser", line)
                     log.debug("create_users: created user: %s" % user)
-                except StandardError, e:
+                except StandardError as e:
                     log.debug("create_users: could not create user: %s: (%s: %s)" % (user, e.__class__.__name__, e))
 
     def sendTrap(self, trapoid, varbinds=None):
