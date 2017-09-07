@@ -65,7 +65,7 @@ netsnmp_callback = CFUNCTYPE(c_int,
 # int (*proc)(int, char * const *, int)
 arg_parse_proc = CFUNCTYPE(c_int, POINTER(c_char_p), c_int);
 
-version = lib.netsnmp_get_version()
+version = lib.netsnmp_get_version().decode('ASCII')
 float_version = float('.'.join(version.split('.')[:2]))
 _netsnmp_str_version = tuple(str(v) for v in version.split('.'))
 localname = []
