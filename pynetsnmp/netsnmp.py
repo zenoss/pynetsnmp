@@ -1,8 +1,8 @@
 import os
 from ctypes import *
 from ctypes.util import find_library
-import CONSTANTS
-from CONSTANTS import *
+from . import CONSTANTS
+from .CONSTANTS import *
 
 # freebsd cannot manage a decent find_library
 import sys
