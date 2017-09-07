@@ -318,7 +318,7 @@ def decodeIp(pdu):
 
 def decodeBigInt(pdu):
     int64 = pdu.val.counter64.contents
-    return (int64.high << 32L) + int64.low
+    return (int64.high << 32) + int64.low
 
 def decodeString(pdu):
     if pdu.val_len:
