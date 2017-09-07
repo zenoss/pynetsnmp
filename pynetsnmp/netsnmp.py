@@ -407,7 +407,7 @@ def parse_args(args, session):
     argv = (c_char_p * argc)()
     for i in range(argc):
         # snmp_parse_args mutates argv, so create a copy
-        argv[i] = create_string_buffer(args[i]).raw
+        argv[i] = create_string_buffer(args[i].encode('UTF-8')).raw
     if lib.snmp_parse_args(argc, argv, session, '', _doNothingProc) < 0:
         def toList(args):
             return [str(x) for x in args]
