@@ -1,8 +1,8 @@
 import os
 from ctypes import *
 from ctypes.util import find_library
-import CONSTANTS
-from CONSTANTS import *
+from . import CONSTANTS
+from .CONSTANTS import *
 
 # freebsd cannot manage a decent find_library
 import sys
@@ -65,7 +65,7 @@ netsnmp_callback = CFUNCTYPE(c_int,
 # int (*proc)(int, char * const *, int)
 arg_parse_proc = CFUNCTYPE(c_int, POINTER(c_char_p), c_int);
 
-version = lib.netsnmp_get_version()
+version = lib.netsnmp_get_version().decode('ASCII')
 float_version = float('.'.join(version.split('.')[:2]))
 _netsnmp_str_version = tuple(str(v) for v in version.split('.'))
 localname = []
@@ -318,7 +318,7 @@ def decodeIp(pdu):
 
 def decodeBigInt(pdu):
     int64 = pdu.val.counter64.contents
-    return (int64.high << 32L) + int64.low
+    return (int64.high << 32) + int64.low
 
 def decodeString(pdu):
     if pdu.val_len:
@@ -385,7 +385,7 @@ def _callback(operation, sp, reqid, pdu, magic):
             sess.timeout(reqid)
         else:
             log.error("Unknown operation: %d", operation)
-    except Exception, ex:
+    except Exception as ex:
         log.exception("Exception in _callback %s", ex)
     return 1
 _callback = netsnmp_callback(_callback)
@@ -407,7 +407,7 @@ def parse_args(args, session):
     argv = (c_char_p * argc)()
     for i in range(argc):
         # snmp_parse_args mutates argv, so create a copy
-        argv[i] = create_string_buffer(args[i]).raw
+        argv[i] = create_string_buffer(args[i].encode('UTF-8')).raw
     if lib.snmp_parse_args(argc, argv, session, '', _doNothingProc) < 0:
         def toList(args):
             return [str(x) for x in args]
@@ -512,7 +512,7 @@ class Session(object):
                                       user.privacy_passphrase])
                     lib.usm_parse_create_usmUser("createUser", line)
                     log.debug("create_users: created user: %s" % user)
-                except StandardError, e:
+                except StandardError as e:
                     log.debug("create_users: could not create user: %s: (%s: %s)" % (user, e.__class__.__name__, e))
 
     def sendTrap(self, trapoid, varbinds=None):
@@ -637,7 +637,7 @@ class Session(object):
 
 
 MAXFD = 1024
-fdset = c_int32 * (MAXFD/32)
+fdset = c_int32 * (MAXFD//32)
 
 class timeval(Structure):
     _fields_ = [

@@ -347,7 +347,7 @@ class AgentProxy(object):
         d = defer.Deferred()
         try:
             self.defers[self.session.get(oids)] = (d, oids)
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return d
@@ -358,7 +358,7 @@ class AgentProxy(object):
             self.defers[self.session.walk(oid)] = (d, (oid,))
         except netsnmp.SnmpTimeoutError:
             return defer.fail(TimeoutError())
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return d
@@ -369,7 +369,7 @@ class AgentProxy(object):
             self.defers[self.session.getbulk(nonrepeaters,
                                              maxrepititions,
                                              oids)] = (d, oids)
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return d
@@ -379,7 +379,7 @@ class AgentProxy(object):
         from tableretriever import TableRetriever
         try:
             t = TableRetriever(self, oids, **kw)
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return t()
