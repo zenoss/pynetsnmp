@@ -1,2 +1,5 @@
 *.pyc
 build
+.idea
+dist
+pynetsnmp.egg-info

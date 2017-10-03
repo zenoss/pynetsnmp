@@ -6,7 +6,6 @@ from ipaddr import IPAddress
 
 from twisted.internet import reactor
 from twisted.internet.error import TimeoutError
-from twisted.internet.interfaces import IReadDescriptor
 from twisted.python import failure
 from twisted.internet import defer
 

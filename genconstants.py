@@ -10,13 +10,15 @@ log = logging.getLogger('zen.genconstants')
 global_vars = {}
 local_vars = {}
 
+
 def write_output(f, name, value):
     assignment = '%s = %s\n' % (name, value)
     try:
         exec(assignment, global_vars, local_vars)
         f.write(assignment)
-    except Exception, e:
+    except Exception as e:
         log.error('Invalid python statement: %s, %s', assignment.strip(), e)
+
 
 def process(f, output):
     lines = open('/usr/include/net-snmp/%s' % f).readlines()
@@ -40,6 +42,7 @@ def process(f, output):
                         break
                 else:
                     write_output(output, m.group(1), value)
+
 
 def make_imports():
     try:
