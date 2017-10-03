@@ -3,3 +3,4 @@ build
 .idea
 dist
 pynetsnmp.egg-info
+pynetsnmp_2.egg-info

@@ -25,13 +25,18 @@ class build(_build):
             _build.run(self)
 
 if __name__ == '__main__':
-    setup(name='pynetsnmp',
+    setup(name='pynetsnmp-2',
           version=VERSION,
+          url="https://github.com/kalombos/pynetsnmp",
+          download_url="https://github.com/kalombos/pynetsnmp",
           description='ctypes wrapper for net-snmp',
           author='Eric C. Newton',
           author_email='ecn@zenoss.com',
+          maintainer='kalombo',
+          maintainer_email='nogamemorebrain@gmail.com',
           cmdclass={'build': build, 'clean': clean},
           package_dir={'pynetsnmp': '.'},
           packages=['pynetsnmp'],
-          install_requires=['ipaddr']
+          install_requires=['ipaddr'],
+          keywords=['snmp', 'twisted', 'pynetsnmp', 'netsnmp'],
           )
