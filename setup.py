@@ -1,11 +1,10 @@
 from distutils.command.build import build as _build
 from distutils.command.clean import clean as _clean
+
 from setuptools import setup
 import os
 import genconstants
 from version import VERSION
-
-ROOT = os.path.dirname(os.path.realpath(__file__))
 
 
 class clean(_clean):
@@ -29,7 +28,8 @@ if __name__ == '__main__':
           url="https://github.com/kalombos/pynetsnmp",
           download_url="https://github.com/kalombos/pynetsnmp",
           description='Ctypes Wrapper for net-snmp using twisted',
-          long_description=open(os.path.join(ROOT, 'README.md')).read(),
+          long_description="This repo is a fork of https://github.com/zenoss/pynetsnmp "
+                           "with opportunity to use set method.",
           author='Eric C. Newton',
           author_email='ecn@zenoss.com',
           maintainer='kalombo',
@@ -37,6 +37,9 @@ if __name__ == '__main__':
           cmdclass={'build': build, 'clean': clean},
           package_dir={'pynetsnmp': '.'},
           packages=['pynetsnmp'],
-          install_requires=['ipaddr'],
+          install_requires=[
+              'ipaddr',
+              'Twisted'
+          ],
           keywords=['snmp', 'twisted', 'pynetsnmp', 'netsnmp'],
           )
