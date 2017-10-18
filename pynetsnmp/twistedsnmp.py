@@ -1,6 +1,6 @@
-import netsnmp
+from pynetsnmp import netsnmp
 import struct
-from CONSTANTS import *
+from pynetsnmp.CONSTANTS import *
 
 from ipaddr import IPAddress
 
@@ -11,6 +11,7 @@ from twisted.internet import defer
 
 import logging
 log = logging.getLogger('zen.twistedsnmp')
+
 
 class Timer(object):
     callLater = None
@@ -39,15 +40,16 @@ PDU_ERRORS = {
     SNMP_ERR_INCONSISTENTNAME: "Inconsistent name",
     }
 
+
 def checkTimeouts():
-    "Handle timeouts for Net-SNMP"
+    """Handle timeouts for Net-SNMP"""
     timer.callLater = None
     netsnmp.lib.snmp_timeout()
     updateReactor()
 
 
-class SnmpReader: #(IReadDescriptor):
-    "Respond to input events"
+class SnmpReader:  # (IReadDescriptor):
+    """Respond to input events"""
 
     def logPrefix(self):
         return 'SnmpReader'
@@ -65,8 +67,9 @@ class SnmpReader: #(IReadDescriptor):
     def connectionLost(self, why):
         del fdMap[self.fd]
 
+
 def updateReactor():
-    "Add/remove event handlers for SNMP file descriptors and timers"
+    """Add/remove event handlers for SNMP file descriptors and timers"""
 
     fds, t = netsnmp.snmp_select_info()
     if log.getEffectiveLevel() < logging.DEBUG:
@@ -88,6 +91,7 @@ def updateReactor():
     if t is not None:
         timer.callLater = reactor.callLater(t, checkTimeouts)
 
+
 class SnmpNameError(Exception):
     def __init__(self, oid):
         Exception.__init__(self, 'Bad Name', oid)
@@ -102,6 +106,7 @@ def asOid(oidStr):
     """converts an OID string into a tuple of integers"""
     return tuple([int(x) for x in oidStr.strip('.').split('.')])
 
+
 def _get_agent_spec(ipobj, interface, port):
     """take a google ipaddr object and port number and produce a net-snmp
     agent specification (see the snmpcmd manpage)"""
@@ -110,14 +115,18 @@ def _get_agent_spec(ipobj, interface, port):
     elif ipobj.version == 6:
         if ipobj.is_link_local:
             if interface is None:
-                raise RuntimeError("Cannot create agent specification from link local IPv6 address without an interface")
+                raise RuntimeError("Cannot create agent specification "
+                                   "from link local IPv6 address without an interface")
             else:
                 agent = "udp6:[%s%%%s]:%s" % (ipobj.compressed, interface, port)
         else:
             agent = "udp6:[%s]:%s" % (ipobj.compressed, port)
     else:
-        raise RuntimeError("Cannot create agent specification for IP address version: %s" % ipobj.version)
+        raise RuntimeError(
+            "Cannot create agent specification for IP address version: %s" % ipobj.version
+        )
     return agent
+
 
 class SnmpError(Exception):
 
@@ -129,6 +138,7 @@ class SnmpError(Exception):
 
     def __repr__(self):
         return self.message
+
 
 class Snmpv3Error(SnmpError): 
     pass
@@ -153,6 +163,7 @@ USM_STATS_OIDS = {
 
 }
 
+
 class AgentProxy(object):
     """The public methods on AgentProxy (get, walk, getbulk) expect input OIDs
     to be strings, and the result they produce is a dictionary.  The 
@@ -169,12 +180,12 @@ class AgentProxy(object):
                  ip,
                  port=161, 
                  community='public',
-                 snmpVersion = '1', 
+                 snmpVersion='1',
                  protocol=None,
-                 allowCache = False,
-                 timeout = 1.5,
-                 tries = 3,
-                 cmdLineArgs = ()):
+                 allowCache=False,
+                 timeout=1.5,
+                 tries=3,
+                 cmdLineArgs=()):
         self.ip = ip
         self.port = port
         self.community = community
@@ -204,7 +215,8 @@ class AgentProxy(object):
                 try:
                     return d.pop(uintkey)
                 except KeyError:
-                    #nothing by the unsigned key either, throw the original KeyError for consistency
+                    # nothing by the unsigned key either,
+                    # throw the original KeyError for consistency
                     raise ex
             raise
 
@@ -324,7 +336,7 @@ class AgentProxy(object):
         d = defer.Deferred()
         try:
             self.defers[self.session.get(oids)] = (d, oids)
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return d
@@ -333,7 +345,7 @@ class AgentProxy(object):
         d = defer.Deferred()
         try:
             self.defers[self.session.set(oids)] = (d, oids)
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return d
@@ -344,7 +356,7 @@ class AgentProxy(object):
             self.defers[self.session.walk(oid)] = (d, (oid,))
         except netsnmp.SnmpTimeoutError:
             return defer.fail(TimeoutError())
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return d
@@ -355,7 +367,7 @@ class AgentProxy(object):
             self.defers[self.session.getbulk(nonrepeaters,
                                              maxrepititions,
                                              oids)] = (d, oids)
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return d
@@ -364,7 +376,7 @@ class AgentProxy(object):
         from tableretriever import TableRetriever
         try:
             t = TableRetriever(self, oids, **kw)
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return t()

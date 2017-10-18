@@ -1,10 +1,10 @@
 from distutils.command.build import build as _build
 from distutils.command.clean import clean as _clean
 
-from setuptools import setup
+from setuptools import setup, find_packages
 import os
-import genconstants
-from version import VERSION
+from pynetsnmp import genconstants
+from pynetsnmp.version import VERSION
 
 
 class clean(_clean):
@@ -35,8 +35,7 @@ if __name__ == '__main__':
           maintainer='kalombo',
           maintainer_email='nogamemorebrain@gmail.com',
           cmdclass={'build': build, 'clean': clean},
-          package_dir={'pynetsnmp': '.'},
-          packages=['pynetsnmp'],
+          packages=find_packages(),
           install_requires=[
               'ipaddr',
               'Twisted'

@@ -46,21 +46,23 @@ def process(f, output):
 
 def make_imports():
     try:
-        out = open('CONSTANTS.py.new', 'w')
+        out = open('pynetsnmp/CONSTANTS.py.new', 'w')
         write_output(out, 'USM_LENGTH_OID_TRANSFORM', '10')
         write_output(out, 'NULL', 'None')
         paths = []
         paths.extend('library/' + x for x in
-            ('callback.h','asn1.h','snmp.h','snmp_api.h','snmp_impl.h','snmp_logging.h','default_store.h'))
+                     ('callback.h', 'asn1.h', 'snmp.h', 'snmp_api.h', 'snmp_impl.h',
+                      'snmp_logging.h', 'default_store.h')
+                     )
         paths.append('types.h')
         for path in paths:
             process(path, out)
         out.close()
-        os.rename('CONSTANTS.py.new', 'CONSTANTS.py')
+        os.rename('pynetsnmp/CONSTANTS.py.new', 'pynetsnmp/CONSTANTS.py')
     except IOError:                     # file not found, prolly
         pass
 
-if __name__=='__main__':
+if __name__ == '__main__':
     make_imports()
-    from CONSTANTS import *             # check the result
+    from pynetsnmp.CONSTANTS import *             # check the result
 

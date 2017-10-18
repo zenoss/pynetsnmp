@@ -1,5 +1,6 @@
 from twisted.internet import defer
-from twistedsnmp import asOidStr, asOid
+from pynetsnmp.twistedsnmp import asOidStr, asOid
+
 
 class _TableStatus(object):
 
@@ -15,10 +16,10 @@ class TableRetriever(object):
     def __init__(self,
                  proxy,
                  oids,
-                 timeout = 1.5,
-                 retryCount = 3,
-                 maxRepetitions = 100,
-                 limit = 1000):
+                 timeout=1.5,
+                 retryCount=3,
+                 maxRepetitions=100,
+                 limit=1000):
         self.proxy = proxy
         self.tableStatus = [_TableStatus(oid) for oid in oids]
         self.defer = defer.Deferred()
@@ -52,7 +53,6 @@ class TableRetriever(object):
             results[ts.startOidStr]=dict([(asOidStr(oid), value) for oid, value in ts.result])
         self.defer.callback(results)
         self.defer = None
-
 
     def saveResults(self, values, ts):
         if values:
