@@ -1,15 +1,14 @@
-from pynetsnmp import netsnmp
 import struct
-from pynetsnmp.CONSTANTS import *
-
+import logging
 from ipaddr import IPAddress
-
 from twisted.internet import reactor
 from twisted.internet.error import TimeoutError
 from twisted.python import failure
 from twisted.internet import defer
 
-import logging
+from pynetsnmp import netsnmp
+from pynetsnmp.CONSTANTS import *
+
 log = logging.getLogger('zen.twistedsnmp')
 
 

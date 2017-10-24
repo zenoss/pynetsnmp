@@ -1,7 +1,7 @@
 import os
 import sys
 import logging
-from six import text_type
+from six import text_type, int2byte
 from ctypes import *
 from ctypes.util import find_library
 from pynetsnmp import CONSTANTS
@@ -356,19 +356,19 @@ _valueToConstant = dict([(chr(getattr(CONSTANTS, k)), k) for k in CONSTANTS.__di
 
 
 decoder = {
-    chr(ASN_OCTET_STR): decodeString,
-    # chr(ASN_BOOLEAN): lambda pdu: pdu.val.integer.contents.value,
-    chr(ASN_INTEGER): lambda pdu: pdu.val.integer.contents.value,
-    chr(ASN_NULL): lambda pdu: None,
-    chr(ASN_OBJECT_ID): decodeOid,
-    chr(ASN_BIT_STR): decodeString,
-    chr(ASN_IPADDRESS): decodeIp,
-    chr(ASN_COUNTER): lambda pdu: pdu.val.uinteger.contents.value,
-    chr(ASN_GAUGE): lambda pdu: pdu.val.uinteger.contents.value,
-    chr(ASN_TIMETICKS): lambda pdu: pdu.val.uinteger.contents.value,
-    chr(ASN_COUNTER64): decodeBigInt,
-    chr(ASN_APP_FLOAT): lambda pdu: pdu.val.float.contents.value,
-    chr(ASN_APP_DOUBLE): lambda pdu: pdu.val.double.contents.value,
+    int2byte(ASN_OCTET_STR): decodeString,
+    # int2byte(ASN_BOOLEAN): lambda pdu: pdu.val.integer.contents.value,
+    int2byte(ASN_INTEGER): lambda pdu: pdu.val.integer.contents.value,
+    int2byte(ASN_NULL): lambda pdu: None,
+    int2byte(ASN_OBJECT_ID): decodeOid,
+    int2byte(ASN_BIT_STR): decodeString,
+    int2byte(ASN_IPADDRESS): decodeIp,
+    int2byte(ASN_COUNTER): lambda pdu: pdu.val.uinteger.contents.value,
+    int2byte(ASN_GAUGE): lambda pdu: pdu.val.uinteger.contents.value,
+    int2byte(ASN_TIMETICKS): lambda pdu: pdu.val.uinteger.contents.value,
+    int2byte(ASN_COUNTER64): decodeBigInt,
+    int2byte(ASN_APP_FLOAT): lambda pdu: pdu.val.float.contents.value,
+    int2byte(ASN_APP_DOUBLE): lambda pdu: pdu.val.double.contents.value,
     }
 
 
@@ -437,13 +437,15 @@ _doNothingProc = arg_parse_proc(_doNothingProc)
 
 
 def parse_args(args, session):
-    import sys
-    args = [sys.argv[0],] + args
+    args = [sys.argv[0]] + args
     argc = len(args)
     argv = (c_char_p * argc)()
     for i in range(argc):
         # snmp_parse_args mutates argv, so create a copy
-        argv[i] = create_string_buffer(args[i]).raw
+        arg = args[i]
+        if isinstance(arg, text_type):
+            arg = arg.encode()
+        argv[i] = create_string_buffer(arg).raw
     if lib.snmp_parse_args(argc, argv, session, '', _doNothingProc) < 0:
         def toList(args):
             return [str(x) for x in args]
@@ -512,7 +514,7 @@ class Session(object):
             log.debug("Cannot find constructor function for UDP/IPv6 transport domain object.")
         lib.init_snmpv3(None)
         lib.setup_engineID(None, None)
-        transport = lib.netsnmp_tdomain_transport(peername, 1, "udp")
+        transport = lib.netsnmp_tdomain_transport(peername, 1, b"udp")
         if not transport:
             raise SnmpError("Unable to create transport {peername}".format(peername=peername))
         if fileno >= 0:
@@ -711,7 +713,7 @@ def snmp_select_info():
 
 def snmp_read(fd):
     rd = fdset()
-    rd[fd / 32] |= 1 << (fd % 32)
+    rd[int(fd / 32)] |= 1 << (fd % 32)
     lib.snmp_read(byref(rd))
 
 done = False

@@ -38,7 +38,8 @@ if __name__ == '__main__':
           packages=find_packages(),
           install_requires=[
               'ipaddr',
-              'Twisted'
+              'Twisted',
+              'six'
           ],
           keywords=['snmp', 'twisted', 'pynetsnmp', 'netsnmp'],
           )
