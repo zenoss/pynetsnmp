@@ -1,6 +1,6 @@
-import netsnmp
+from . import netsnmp
 import struct
-from CONSTANTS import *
+from .CONSTANTS import *
 
 try:
     from ipaddr import IPAddress
