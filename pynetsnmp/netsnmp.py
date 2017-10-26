@@ -312,7 +312,7 @@ def strToOid(oidStr):
     return mkoid(tuple([int(x) for x in oidStr.strip('.').split('.')]))
 
 def decodeOid(pdu):
-    return tuple([pdu.val.objid[i] for i in range(pdu.val_len / sizeof(u_long))])
+    return tuple([pdu.val.objid[i] for i in range(pdu.val_len // sizeof(u_long))])
 
 def decodeIp(pdu):
     return '.'.join(map(str, pdu.val.bitstring[:4]))
