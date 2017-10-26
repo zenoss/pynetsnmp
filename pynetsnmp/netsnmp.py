@@ -6,6 +6,7 @@ from .CONSTANTS import *
 
 # freebsd cannot manage a decent find_library
 import sys
+PY3 = sys.version_info.major == 3
 
 if sys.platform.find('free') > -1:
     find_library_orig = find_library
@@ -325,23 +326,30 @@ def decodeString(pdu):
         return string_at(pdu.val.bitstring, pdu.val_len)
     return ''
 
-_valueToConstant = dict([(chr(getattr(CONSTANTS, k)), k) for k in CONSTANTS.__dict__.keys() if isinstance(getattr(CONSTANTS,k), int) and getattr(CONSTANTS,k)>=0 and getattr(CONSTANTS,k) < 256])
+def char(byte):
+    """Converts a byte to a binary character with Python3 compatibility"""
+    if PY3:
+        return bytes(bytearray((byte,)))
+    else:
+        return chr(byte)
+
+_valueToConstant = dict([(char(getattr(CONSTANTS, k)), k) for k in CONSTANTS.__dict__.keys() if isinstance(getattr(CONSTANTS,k), int) and getattr(CONSTANTS,k)>=0 and getattr(CONSTANTS,k) < 256])
 
 
 decoder = {
-    chr(ASN_OCTET_STR): decodeString,
-    # chr(ASN_BOOLEAN): lambda pdu: pdu.val.integer.contents.value,
-    chr(ASN_INTEGER): lambda pdu: pdu.val.integer.contents.value,
-    chr(ASN_NULL): lambda pdu: None,
-    chr(ASN_OBJECT_ID): decodeOid,
-    chr(ASN_BIT_STR): decodeString,
-    chr(ASN_IPADDRESS): decodeIp,
-    chr(ASN_COUNTER): lambda pdu: pdu.val.uinteger.contents.value,
-    chr(ASN_GAUGE): lambda pdu: pdu.val.uinteger.contents.value,
-    chr(ASN_TIMETICKS): lambda pdu: pdu.val.uinteger.contents.value,
-    chr(ASN_COUNTER64): decodeBigInt,
-    chr(ASN_APP_FLOAT): lambda pdu: pdu.val.float.contents.value,
-    chr(ASN_APP_DOUBLE): lambda pdu: pdu.val.double.contents.value,
+    char(ASN_OCTET_STR): decodeString,
+    # char(ASN_BOOLEAN): lambda pdu: pdu.val.integer.contents.value,
+    char(ASN_INTEGER): lambda pdu: pdu.val.integer.contents.value,
+    char(ASN_NULL): lambda pdu: None,
+    char(ASN_OBJECT_ID): decodeOid,
+    char(ASN_BIT_STR): decodeString,
+    char(ASN_IPADDRESS): decodeIp,
+    char(ASN_COUNTER): lambda pdu: pdu.val.uinteger.contents.value,
+    char(ASN_GAUGE): lambda pdu: pdu.val.uinteger.contents.value,
+    char(ASN_TIMETICKS): lambda pdu: pdu.val.uinteger.contents.value,
+    char(ASN_COUNTER64): decodeBigInt,
+    char(ASN_APP_FLOAT): lambda pdu: pdu.val.float.contents.value,
+    char(ASN_APP_DOUBLE): lambda pdu: pdu.val.double.contents.value,
     }
 
 def decodeType(var):
