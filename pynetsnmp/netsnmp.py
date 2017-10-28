@@ -1,8 +1,8 @@
 import os
 from ctypes import *
 from ctypes.util import find_library
-import CONSTANTS
-from CONSTANTS import *
+from pynetsnmp import CONSTANTS
+from pynetsnmp.CONSTANTS import *
 
 # freebsd cannot manage a decent find_library
 import sys
@@ -65,7 +65,7 @@ netsnmp_callback = CFUNCTYPE(c_int,
 # int (*proc)(int, char * const *, int)
 arg_parse_proc = CFUNCTYPE(c_int, POINTER(c_char_p), c_int);
 
-version = lib.netsnmp_get_version()
+version = lib.netsnmp_get_version().decode('utf-8')
 float_version = float('.'.join(version.split('.')[:2]))
 _netsnmp_str_version = tuple(str(v) for v in version.split('.'))
 localname = []
@@ -311,14 +311,14 @@ def strToOid(oidStr):
     return mkoid(tuple([int(x) for x in oidStr.strip('.').split('.')]))
 
 def decodeOid(pdu):
-    return tuple([pdu.val.objid[i] for i in range(pdu.val_len / sizeof(u_long))])
+    return tuple([pdu.val.objid[i] for i in range(int(pdu.val_len / sizeof(u_long)))])
 
 def decodeIp(pdu):
     return '.'.join(map(str, pdu.val.bitstring[:4]))
 
 def decodeBigInt(pdu):
     int64 = pdu.val.counter64.contents
-    return (int64.high << 32L) + int64.low
+    return (int64.high << 32) + int64.low
 
 def decodeString(pdu):
     if pdu.val_len:
@@ -346,7 +346,7 @@ decoder = {
 
 def decodeType(var):
     oid = [var.name[i] for i in range(var.name_length)]
-    decode = decoder.get(var.type, None)
+    decode = decoder.get(var.type.decode('utf-8'), None)
     if not decode:
         # raise UnknownType(oid, ord(var.type))
         log_oid = ".".join(map(str, oid))
@@ -385,7 +385,7 @@ def _callback(operation, sp, reqid, pdu, magic):
             sess.timeout(reqid)
         else:
             log.error("Unknown operation: %d", operation)
-    except Exception, ex:
+    except Exception as ex:
         log.exception("Exception in _callback %s", ex)
     return 1
 _callback = netsnmp_callback(_callback)
@@ -407,7 +407,7 @@ def parse_args(args, session):
     argv = (c_char_p * argc)()
     for i in range(argc):
         # snmp_parse_args mutates argv, so create a copy
-        argv[i] = create_string_buffer(args[i]).raw
+        argv[i] = create_string_buffer(args[i].encode('utf-8')).raw
     if lib.snmp_parse_args(argc, argv, session, '', _doNothingProc) < 0:
         def toList(args):
             return [str(x) for x in args]
@@ -433,6 +433,8 @@ def initialize_session(sess, cmdLineArgs, kw):
     else:
         lib.snmp_sess_init(byref(sess))
     for attr, value in kw.items():
+        if isinstance(value, str):
+            value = value.encode('utf-8')
         setattr(sess, attr, value)
     return args
 
@@ -512,7 +514,7 @@ class Session(object):
                                       user.privacy_passphrase])
                     lib.usm_parse_create_usmUser("createUser", line)
                     log.debug("create_users: created user: %s" % user)
-                except StandardError, e:
+                except Exception as e:
                     log.debug("create_users: could not create user: %s: (%s: %s)" % (user, e.__class__.__name__, e))
 
     def sendTrap(self, trapoid, varbinds=None):
@@ -637,7 +639,7 @@ class Session(object):
 
 
 MAXFD = 1024
-fdset = c_int32 * (MAXFD/32)
+fdset = c_int32 * int(MAXFD/32)
 
 class timeval(Structure):
     _fields_ = [
@@ -674,7 +676,7 @@ def snmp_select_info():
 
 def snmp_read(fd):
     rd = fdset()
-    rd[fd / 32] |= 1 << (fd % 32)
+    rd[int(fd / 32)] |= 1 << (fd % 32)
     lib.snmp_read(byref(rd))
 
 done = False

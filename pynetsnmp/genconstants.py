@@ -15,7 +15,7 @@ def write_output(f, name, value):
     try:
         exec(assignment, global_vars, local_vars)
         f.write(assignment)
-    except Exception, e:
+    except Exception as e:
         log.error('Invalid python statement: %s, %s', assignment.strip(), e)
 
 def process(f, output):
@@ -59,5 +59,5 @@ def make_imports():
 
 if __name__=='__main__':
     make_imports()
-    from CONSTANTS import *             # check the result
+    from pynetsnmp.CONSTANTS import *             # check the result
 

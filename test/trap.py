@@ -1,3 +1,4 @@
+from __future__ import print_function
 import netsnmp
 from ctypes import *
 from CONSTANTS import *
@@ -16,11 +17,11 @@ class Trapd(netsnmp.Session):
 
     def callback(self, pdu):
         result = netsnmp.getResult(pdu)
-        print result
+        print(result)
         for oid, value in result:
             oid = '.'.join(map(str, oid))
-            print translateOid(oid), value
-        print pdu.command
+            print(translateOid(oid), value)
+        print(pdu.command)
         if pdu.command == SNMP_MSG_TRAP:
             pass
         elif pdu.command == SNMP_MSG_TRAP2:

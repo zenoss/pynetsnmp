@@ -1,5 +1,5 @@
 from twisted.internet import defer
-from twistedsnmp import asOidStr, asOid
+from pynetsnmp.twistedsnmp import asOidStr, asOid
 
 class _TableStatus(object):
 

@@ -1,6 +1,6 @@
-import netsnmp
+from pynetsnmp import netsnmp
 import struct
-from CONSTANTS import *
+from pynetsnmp.CONSTANTS import *
 
 from ipaddr import IPAddress
 
@@ -344,7 +344,7 @@ class AgentProxy(object):
         d = defer.Deferred()
         try:
             self.defers[self.session.get(oids)] = (d, oids)
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return d
@@ -355,7 +355,7 @@ class AgentProxy(object):
             self.defers[self.session.walk(oid)] = (d, (oid,))
         except netsnmp.SnmpTimeoutError:
             return defer.fail(TimeoutError())
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return d
@@ -366,17 +366,17 @@ class AgentProxy(object):
             self.defers[self.session.getbulk(nonrepeaters,
                                              maxrepititions,
                                              oids)] = (d, oids)
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return d
 
 
     def getTable(self, oids, **kw):
-        from tableretriever import TableRetriever
+        from pynetsnmp.tableretriever import TableRetriever
         try:
             t = TableRetriever(self, oids, **kw)
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return t()
