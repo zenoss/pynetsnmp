@@ -512,7 +512,7 @@ class Session(object):
             lib.netsnmp_udp6_ctor()
         else:
             log.debug("Cannot find constructor function for UDP/IPv6 transport domain object.")
-        lib.init_snmpv3(None)
+        lib.init_snmp("zenoss_app")
         lib.setup_engineID(None, None)
         transport = lib.netsnmp_tdomain_transport(peername, 1, b"udp")
         if not transport:
@@ -542,13 +542,14 @@ class Session(object):
         for user in users:
             if user.version == 3:
                 try:
-                    line = " ".join(["-e",
-                                     user.engine_id,
-                                     user.username,
-                                     user.authentication_type,  # MD5 or SHA
-                                     user.authentication_passphrase,
-                                     user.privacy_protocol,  # DES or AES
-                                     user.privacy_passphrase])
+                    line = ""
+                    if user.engine_id:
+                        line = "-e {} ".format(user.engine_id)
+                    line += " ".join([user.username,
+                                      user.authentication_type,  # MD5 or SHA
+                                      user.authentication_passphrase,
+                                      user.privacy_protocol,  # DES or AES
+                                      user.privacy_passphrase])
                     lib.usm_parse_create_usmUser("createUser", line)
                     log.debug("create_users: created user: %s" % user)
                 except StandardError as e:
@@ -557,13 +558,25 @@ class Session(object):
                               )
 
     def sendTrap(self, trapoid, varbinds=None):
-        pdu = lib.snmp_pdu_create(SNMP_MSG_TRAP2)
+        if '-v1' in self.cmdLineArgs:
+            pdu = lib.snmp_pdu_create(SNMP_MSG_TRAP)
+            if hasattr(self, 'agent_addr'):
+                # pdu.contents is a netsnmp_pdu, defined above, therefore its fields are c types
+                # self.agent_addr is an ipv4 address, and the v1 trap wants a c array of 4 unsigned bytes,
+                # so chop it up, make the octets ints, then a bytearray from that will cast.
+                pdu.contents.agent_addr = (c_ubyte*4)(*(bytearray([int(x) for x in self.agent_addr.split('.')])))
+            pdu.contents.trap_type = 6
+            pdu.contents.specific_type = 0
+            pdu.contents.time = lib.get_uptime()
 
-        # sysUpTime is mandatory on V2Traps.
-        objid_sysuptime = mkoid((1, 3, 6, 1, 2, 1, 1, 3, 0))
-        uptime = "%ld" % lib.get_uptime()
-        lib.snmp_add_var(
-            pdu, objid_sysuptime, len(objid_sysuptime), 't', uptime)
+        else:
+            pdu = lib.snmp_pdu_create(SNMP_MSG_TRAP2)
+
+            # sysUpTime is mandatory on V2Traps.
+            objid_sysuptime = mkoid((1, 3, 6, 1, 2, 1, 1, 3, 0))
+            uptime = "%ld" % lib.get_uptime()
+            lib.snmp_add_var(
+                pdu, objid_sysuptime, len(objid_sysuptime), 't', uptime)
 
         # snmpTrapOID is mandatory on V2Traps.
         objid_snmptrap = mkoid((1, 3, 6, 1, 6, 3, 1, 1, 4, 1, 0))
@@ -576,6 +589,19 @@ class Session(object):
                 lib.snmp_add_var(pdu, n, len(n), t, v)
 
         lib.snmp_send(self.sess, pdu)
+
+    def abandon(self):
+        """
+        netsnmp appears to deallocate sessions upon receipt of an SNMPv3
+        authentication error. When that occurs, we can't trust any pointers we
+        may have to those objects, and should slash and burn our references.
+
+        See ZEN-23056.
+        """
+        log.debug("Abandoning session %s" % id(self))
+        sessionMap.pop(id(self))
+        self.sess = None
+        self.args = None
 
     def close(self):
         if not self.sess:
