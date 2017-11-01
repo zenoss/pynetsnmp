@@ -1,5 +1,6 @@
-import netsnmp
-import twistedsnmp
+from __future__ import print_function
+from pynetsnmp import netsnmp
+from pynetsnmp import twistedsnmp
 import sys
 
 from twisted.internet import reactor
@@ -15,7 +16,7 @@ class Table(netsnmp.Session):
         self.getbulk(0, self.max, [root])
 
     def stop(self, why):
-        print "stopping: %s" % why
+        print("stopping: %s" % why)
         if reactor.running:
             reactor.stop()
 
@@ -25,8 +26,8 @@ class Table(netsnmp.Session):
             if oid[:len(self.root)] != self.root:
                 self.stop("table end")
                 return
-            print '.'.join(map(str, oid)), ':', `value`
-        print
+            print('.'.join(map(str, oid)), ':', repr(value))
+        print()
         if not results:
             self.stop("empty result")
         else:

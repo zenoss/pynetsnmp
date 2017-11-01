@@ -1,4 +1,5 @@
 """prints the number of interfaces returned by a walk of ifIndex"""
+from __future__ import print_function
 
 from tableretriever import TableRetriever
 from twistedsnmp import AgentProxy
@@ -13,7 +14,7 @@ def error(why):
     log.error('%s', why)
 
 def success(result):
-    print len(result.values()[0])
+    print(len(result.values()[0]))
     reactor.stop()
 
 def closer(result, proxy):

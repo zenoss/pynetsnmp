@@ -1,5 +1,6 @@
-import netsnmp
-import twistedsnmp
+from __future__ import print_function
+from pynetsnmp import netsnmp
+from pynetsnmp import twistedsnmp
 import sys
 
 from twisted.internet import reactor
@@ -9,11 +10,11 @@ class Getter(netsnmp.Session):
     def callback(self, pdu):
         results = netsnmp.getResult(pdu)
         for oid, value in results:
-            print oid, `value`
+            print(oid, repr(value))
         reactor.stop()
 
     def timeout(self, reqid):
-        print "Timeout"
+        print("Timeout")
         reactor.stop()
 
 def main():
