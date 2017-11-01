@@ -1,5 +1,6 @@
-import netsnmp
-import twistedsnmp
+from __future__ import print_function
+from pynetsnmp import netsnmp
+from pynetsnmp import twistedsnmp
 import sys
 
 from twisted.internet import reactor, defer
@@ -11,7 +12,7 @@ class Walker(netsnmp.Session):
 
     def stop(self, why = None):
         host = self.sess.contents.peername
-        print "stopping: %s %s" % (host, why or '')
+        print("stopping: %s %s" % (host, why or ''))
         if not why:
             self.defer.callback( (host, self.results) )
         else:
@@ -22,7 +23,7 @@ class Walker(netsnmp.Session):
     def callback(self, pdu):
         results = netsnmp.getResult(pdu)
         oid, value = results[0]
-        if oid <= self.lastOid:
+        if self.lastOid != None and oid <= self.lastOid:
             self.stop()
         else:
             self.results.append( (oid, value) )
@@ -43,9 +44,9 @@ def stop(results):
     for success, values in results:
         if success:
             host, values = values
-            print host, len(values)
+            print(host, len(values))
         else:
-            print values
+            print(values)
     if reactor.running:
         reactor.stop()
 

@@ -1,3 +1,4 @@
+from __future__ import print_function
 from twistedsnmp import AgentProxy
 from twisted.python import failure
 from twisted.internet import reactor
@@ -34,7 +35,7 @@ def main():
     d.addBoth(printResults)
     d.addCallback(close, proxy)
     reactor.run()
-    print "end reactor"
+    print("end reactor")
 
 if __name__ == '__main__':
     main()

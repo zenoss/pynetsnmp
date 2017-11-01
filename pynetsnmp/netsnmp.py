@@ -79,7 +79,7 @@ netsnmp_callback = CFUNCTYPE(c_int,
 # int (*proc)(int, char * const *, int)
 arg_parse_proc = CFUNCTYPE(c_int, POINTER(c_char_p), c_int)
 
-version = text_type(lib.netsnmp_get_version(), 'utf8')
+version = text_type(lib.netsnmp_get_version(), 'utf-8')
 float_version = float('.'.join(version.split('.')[:2]))
 _netsnmp_str_version = tuple(str(v) for v in version.split('.'))
 localname = []
@@ -335,7 +335,7 @@ def strToOid(oidStr):
 
 
 def decodeOid(pdu):
-    return tuple([pdu.val.objid[i] for i in range(pdu.val_len / sizeof(u_long))])
+    return tuple([pdu.val.objid[i] for i in range(int(pdu.val_len / sizeof(u_long)))])
 
 
 def decodeIp(pdu):
@@ -444,7 +444,7 @@ def parse_args(args, session):
         # snmp_parse_args mutates argv, so create a copy
         arg = args[i]
         if isinstance(arg, text_type):
-            arg = arg.encode()
+            arg = arg.encode('utf-8')
         argv[i] = create_string_buffer(arg).raw
     if lib.snmp_parse_args(argc, argv, session, '', _doNothingProc) < 0:
         def toList(args):
@@ -472,6 +472,8 @@ def initialize_session(sess, cmdLineArgs, kw):
     else:
         lib.snmp_sess_init(byref(sess))
     for attr, value in kw.items():
+        if isinstance(value, text_type):
+            value = value.encode('utf-8')
         setattr(sess, attr, value)
     return args
 
@@ -552,7 +554,7 @@ class Session(object):
                                       user.privacy_passphrase])
                     lib.usm_parse_create_usmUser("createUser", line)
                     log.debug("create_users: created user: %s" % user)
-                except StandardError as e:
+                except Exception as e:
                     log.debug("create_users: could not create user: %s: (%s: %s)" %
                               (user, e.__class__.__name__, e)
                               )

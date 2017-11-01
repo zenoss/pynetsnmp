@@ -139,7 +139,7 @@ class SnmpError(Exception):
         return self.message
 
 
-class Snmpv3Error(SnmpError): 
+class Snmpv3Error(SnmpError):
     pass
 
 USM_STATS_OIDS = {
@@ -391,7 +391,7 @@ class AgentProxy(object):
         return d
 
     def getTable(self, oids, **kw):
-        from tableretriever import TableRetriever
+        from pynetsnmp.tableretriever import TableRetriever
         try:
             t = TableRetriever(self, oids, **kw)
         except Exception as ex:
