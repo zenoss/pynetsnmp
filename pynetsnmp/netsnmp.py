@@ -512,7 +512,7 @@ class Session(object):
             lib.netsnmp_udp6_ctor()
         else:
             log.debug("Cannot find constructor function for UDP/IPv6 transport domain object.")
-        lib.init_snmp("zenoss_app")
+        lib.init_snmp("pynetsnmp")
         lib.setup_engineID(None, None)
         transport = lib.netsnmp_tdomain_transport(peername, 1, b"udp")
         if not transport:

@@ -3,10 +3,10 @@ from setuptools import setup, find_packages
 # 'make build' will build the pynetsnmp and copy them to the needed locations.
 
 setup(
-    name = "pynetsnmp-2",
-    version = "0.0.6",
+    name="pynetsnmp-2",
+    version="0.0.6",
     packages=find_packages(),
-    install_requires = [
+    install_requires=[
         'setuptools',
         'ipaddr',
         'Twisted',
@@ -15,7 +15,7 @@ setup(
     include_package_data=True,
     # metadata for upload to PyPI
     author="Zenoss",
-    author_email = "support@zenoss.com",
+    author_email="support@zenoss.com",
     maintainer='kalombo',
     maintainer_email='nogamemorebrain@gmail.com',
     description="ctypes wrapper for net-snmp.",
@@ -27,4 +27,3 @@ setup(
     download_url="https://github.com/kalombos/pynetsnmp",
     zip_safe=False
 )
-
