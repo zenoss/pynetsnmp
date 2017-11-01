@@ -6,8 +6,8 @@ from twisted.internet.error import TimeoutError
 from twisted.python import failure
 from twisted.internet import defer
 
-from pynetsnmp import netsnmp
-from pynetsnmp.CONSTANTS import *
+from . import netsnmp
+from .CONSTANTS import *
 
 log = logging.getLogger('zen.twistedsnmp')
 
