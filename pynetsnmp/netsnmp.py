@@ -4,13 +4,13 @@ import logging
 from six import text_type, int2byte
 from ctypes import *
 from ctypes.util import find_library
-from pynetsnmp import CONSTANTS
-from pynetsnmp.CONSTANTS import *
+from . import CONSTANTS
+from .CONSTANTS import *
 
 if sys.version_info > (3,):
     long = int
 
-
+# freebsd cannot manage a decent find_library
 if sys.platform.find('free') > -1:
     find_library_orig = find_library
 
@@ -335,7 +335,7 @@ def strToOid(oidStr):
 
 
 def decodeOid(pdu):
-    return tuple([pdu.val.objid[i] for i in range(int(pdu.val_len / sizeof(u_long)))])
+    return tuple([pdu.val.objid[i] for i in range(pdu.val_len // sizeof(u_long))])
 
 
 def decodeIp(pdu):
@@ -352,7 +352,7 @@ def decodeString(pdu):
         return string_at(pdu.val.bitstring, pdu.val_len)
     return ''
 
-_valueToConstant = dict([(chr(getattr(CONSTANTS, k)), k) for k in CONSTANTS.__dict__.keys() if isinstance(getattr(CONSTANTS,k), int) and getattr(CONSTANTS,k)>=0 and getattr(CONSTANTS,k) < 256])
+_valueToConstant = dict([(int2byte(getattr(CONSTANTS, k)), k) for k in CONSTANTS.__dict__.keys() if isinstance(getattr(CONSTANTS,k), int) and getattr(CONSTANTS,k)>=0 and getattr(CONSTANTS,k) < 256])
 
 
 decoder = {
@@ -703,8 +703,7 @@ class Session(object):
 
 
 MAXFD = 1024
-fdset = c_int32 * int(MAXFD/32)
-
+fdset = c_int32 * (MAXFD//32)
 
 class timeval(Structure):
     _fields_ = [
