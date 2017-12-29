@@ -674,7 +674,7 @@ class Session(object):
         req = self._create_request(SNMP_MSG_SET)
         for oid, _type, value in oids:
             oid = mkoid(oid)
-            lib.snmp_add_var(req, oid, len(oid), _type, value)
+            lib.snmp_add_var(req, oid, len(oid), _type.encode('utf-8'), value.encode('utf-8'))
 
         send_status = lib.snmp_send(self.sess, req)
         self._handle_send_status(req, send_status, 'set')
