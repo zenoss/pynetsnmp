@@ -87,6 +87,18 @@ if _netsnmp_str_version >= ('5','6'):
     class netsnmp_container_s(Structure): pass
     transportConfig = [('transport_configuration', POINTER(netsnmp_container_s))]
 
+
+SNMP_VERSION_MAP = {
+    '1': SNMP_VERSION_1,
+    '2c': SNMP_VERSION_2c,
+    '2u': SNMP_VERSION_2u,
+    '3': SNMP_VERSION_3,
+    'sec': SNMP_VERSION_sec,
+    '2p': SNMP_VERSION_2p,
+    '2star': SNMP_VERSION_2star,
+}
+
+
 # Version
 netsnmp_session._fields_ = [
         ('version', c_long),
@@ -401,17 +413,15 @@ def _doNothingProc(argc, argv, arg):
 _doNothingProc = arg_parse_proc(_doNothingProc)
 
 def parse_args(args, session):
-    import sys
     args = [sys.argv[0],] + args
     argc = len(args)
     argv = (c_char_p * argc)()
     for i in range(argc):
         # snmp_parse_args mutates argv, so create a copy
         argv[i] = create_string_buffer(args[i]).raw
+    # WARNING: Usage of snmp_parse_args call causes memory leak.
     if lib.snmp_parse_args(argc, argv, session, '', _doNothingProc) < 0:
-        def toList(args):
-            return [str(x) for x in args]
-        raise ArgumentParseError("Unable to parse arguments", toList(argv))
+        raise ArgumentParseError("Unable to parse arguments", ' '.join(argv))
     # keep a reference to the args for as long as sess is alive
     return argv
 
