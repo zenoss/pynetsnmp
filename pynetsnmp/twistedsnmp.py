@@ -283,12 +283,12 @@ class AgentProxy(object):
         reactor.callLater(0, d.errback, failure.Failure(TimeoutError()))
 
     def _getCmdLineArgs(self):
+        if not self.cmdLineArgs:
+            return ()
+
         version = str(self.snmpVersion).lstrip('v')
         if version == '2':
             version += 'c'
-        if self.session is not None:
-            self.session.close()
-            self.session = None
 
         if '%' in self.ip:
             address, interface = self.ip.split('%')
@@ -297,6 +297,7 @@ class AgentProxy(object):
             interface = None
 
         log.debug("AgentProxy._getCmdLineArgs: using google ipaddr on %s" % address)
+
         ipobj = IPAddress(address)
         agent = _get_agent_spec(ipobj, interface, self.port)
 
@@ -309,7 +310,21 @@ class AgentProxy(object):
         return cmdLineArgs
 
     def open(self):
-        self.session = netsnmp.Session(cmdLineArgs=self._getCmdLineArgs())
+        if self.session is not None:
+            self.session.close()
+            self.session = None
+
+        self.session = netsnmp.Session(
+            version=netsnmp.SNMP_VERSION_MAP.get(
+                self.snmpVersion, 
+                netsnmp.SNMP_VERSION_2c),
+            timeout=int(self.timeout),
+            retries=int(self.tries),
+            peername= '%s:%d' % (self.ip, self.port),
+            community=self.community,
+            community_len=len(self.community),
+            cmdLineArgs=self._getCmdLineArgs())
+
         self.session.callback = self.callback
         self.session.timeout = self.timeout_
         self.session.open()
