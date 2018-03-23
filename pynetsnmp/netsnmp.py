@@ -350,7 +350,7 @@ def decodeBigInt(pdu):
 def decodeString(pdu):
     if pdu.val_len:
         return string_at(pdu.val.bitstring, pdu.val_len)
-    return ''
+    return b''
 
 _valueToConstant = dict([(int2byte(getattr(CONSTANTS, k)), k) for k in CONSTANTS.__dict__.keys() if isinstance(getattr(CONSTANTS,k), int) and getattr(CONSTANTS,k)>=0 and getattr(CONSTANTS,k) < 256])
 
