@@ -516,7 +516,7 @@ class Session(object):
             log.debug("Cannot find constructor function for UDP/IPv6 transport domain object.")
         lib.init_snmp("pynetsnmp")
         lib.setup_engineID(None, None)
-        transport = lib.netsnmp_tdomain_transport(peername, 1, b"udp")
+        transport = lib.netsnmp_tdomain_transport(peername.encode(), 1, b"udp")
         if not transport:
             raise SnmpError("Unable to create transport {peername}".format(peername=peername))
         if fileno >= 0:
