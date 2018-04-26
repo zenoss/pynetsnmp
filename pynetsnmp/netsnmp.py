@@ -425,6 +425,8 @@ def parse_args(args, session):
     # keep a reference to the args for as long as sess is alive
     return argv
 
+_NoAttribute = object()
+
 def initialize_session(sess, cmdLineArgs, kw):
     args = None
     kw = kw.copy()
@@ -443,7 +445,28 @@ def initialize_session(sess, cmdLineArgs, kw):
     else:
         lib.snmp_sess_init(byref(sess))
     for attr, value in kw.items():
-        setattr(sess, attr, value)
+        pv = getattr(sess, attr, _NoAttribute)
+        if pv is _NoAttribute:
+            continue  # Don't set invalid properties
+        if attr == "timeout":
+            # -1 means the property hasn't been set
+            if pv == -1:
+                # Converts seconds to microseconds
+                setattr(sess, attr, value * 1000000)
+        elif attr == "version":
+            # -1 means the property hasn't been set
+            if pv == -1:
+                setattr(sess, attr, value)
+        elif attr == "community":
+            # None means the property hasn't been set
+            if pv is None:
+                setattr(sess, attr, value)
+                setattr(sess, "community_len", len(value))
+        elif attr == "community_len":
+            # Setting community_len on its own is a segfault waiting to happen
+            pass
+        else:
+            setattr(sess, attr, value)
     return args
 
 class Session(object):
