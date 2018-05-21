@@ -87,6 +87,18 @@ if _netsnmp_str_version >= ('5','6'):
     class netsnmp_container_s(Structure): pass
     transportConfig = [('transport_configuration', POINTER(netsnmp_container_s))]
 
+
+SNMP_VERSION_MAP = {
+    '1': SNMP_VERSION_1,
+    '2c': SNMP_VERSION_2c,
+    '2u': SNMP_VERSION_2u,
+    '3': SNMP_VERSION_3,
+    'sec': SNMP_VERSION_sec,
+    '2p': SNMP_VERSION_2p,
+    '2star': SNMP_VERSION_2star,
+}
+
+
 # Version
 netsnmp_session._fields_ = [
         ('version', c_long),
@@ -298,6 +310,29 @@ snmp_input_t = CFUNCTYPE(c_int,
                          netsnmp_pdu_p,
                          c_void_p)
 
+
+# A pointer to a _CallbackData struct is used for the callback_magic
+# parameter on the netsnmp_session structure.  In the case of a SNMP v3
+# authentication error, a portion of the data pointed by callback_magic
+# is overwritten.  The 'reserved' member of the _CallbackData struct
+# allocates enough space for the net-snmp library to write into without
+# corrupting the rest of the struct.
+class _CallbackData(Structure):
+    _fields_ = [
+        ("reserved", c_void_p),  # net-snmp corrupts this on snmpv3 auth errors
+        ("session_id", c_ulong),
+    ]
+
+
+_CallbackDataPtr = POINTER(_CallbackData)
+
+lib.snmpv3_get_report_type.argtypes = [netsnmp_pdu_p]
+lib.snmpv3_get_report_type.restype = c_int
+
+lib.snmp_api_errstring.argtypes = [c_int]
+lib.snmp_api_errstring.restype = c_char_p
+
+
 class UnknownType(Exception):
     pass
 
@@ -377,7 +412,8 @@ class SnmpTimeoutError(Exception):
 
 sessionMap = {}
 def _callback(operation, sp, reqid, pdu, magic):
-    sess = sessionMap[magic]
+    data_ptr = cast(magic, _CallbackDataPtr)
+    sess = sessionMap[data_ptr.contents.session_id]
     try:
         if operation == NETSNMP_CALLBACK_OP_RECEIVED_MESSAGE:
             sess.callback(pdu.contents)
@@ -401,19 +437,19 @@ def _doNothingProc(argc, argv, arg):
 _doNothingProc = arg_parse_proc(_doNothingProc)
 
 def parse_args(args, session):
-    import sys
     args = [sys.argv[0],] + args
     argc = len(args)
     argv = (c_char_p * argc)()
     for i in range(argc):
         # snmp_parse_args mutates argv, so create a copy
         argv[i] = create_string_buffer(args[i]).raw
+    # WARNING: Usage of snmp_parse_args call causes memory leak.
     if lib.snmp_parse_args(argc, argv, session, '', _doNothingProc) < 0:
-        def toList(args):
-            return [str(x) for x in args]
-        raise ArgumentParseError("Unable to parse arguments", toList(argv))
+        raise ArgumentParseError("Unable to parse arguments", ' '.join(argv))
     # keep a reference to the args for as long as sess is alive
     return argv
+
+_NoAttribute = object()
 
 def initialize_session(sess, cmdLineArgs, kw):
     args = None
@@ -433,7 +469,28 @@ def initialize_session(sess, cmdLineArgs, kw):
     else:
         lib.snmp_sess_init(byref(sess))
     for attr, value in kw.items():
-        setattr(sess, attr, value)
+        pv = getattr(sess, attr, _NoAttribute)
+        if pv is _NoAttribute:
+            continue  # Don't set invalid properties
+        if attr == "timeout":
+            # -1 means the property hasn't been set
+            if pv == -1:
+                # Converts seconds to microseconds
+                setattr(sess, attr, value * 1000000)
+        elif attr == "version":
+            # -1 means the property hasn't been set
+            if pv == -1:
+                setattr(sess, attr, value)
+        elif attr == "community":
+            # None means the property hasn't been set
+            if pv is None:
+                setattr(sess, attr, value)
+                setattr(sess, "community_len", len(value))
+        elif attr == "community_len":
+            # Setting community_len on its own is a segfault waiting to happen
+            pass
+        else:
+            setattr(sess, attr, value)
     return args
 
 class Session(object):
@@ -445,12 +502,14 @@ class Session(object):
         self.kw = kw
         self.sess = None
         self.args = None
+        self._data = None  # ref to _CallbackData object
 
     def open(self):
         sess = netsnmp_session()
         self.args = initialize_session(sess, self.cmdLineArgs, self.kw)
         sess.callback = _callback
-        sess.callback_magic = id(self)
+        self._data = _CallbackData(session_id=id(self))
+        sess.callback_magic = cast(pointer(self._data), c_void_p)
         ref = byref(sess)
         self.sess = lib.snmp_open(ref)
         if not self.sess:
@@ -489,7 +548,8 @@ class Session(object):
         sess.retries = SNMP_DEFAULT_RETRIES
         sess.timeout = SNMP_DEFAULT_TIMEOUT
         sess.callback = _callback
-        sess.callback_magic = id(self)
+        self._data = _CallbackData(session_id=id(self))
+        sess.callback_magic = cast(pointer(self._data), c_void_p)
         # sess.authenticator = None
         sess.isAuthoritative = SNMP_SESS_UNKNOWNAUTH
         rc = lib.snmp_add(self.sess, transport, pre_parse_callback, None)
@@ -548,27 +608,16 @@ class Session(object):
 
         lib.snmp_send(self.sess, pdu)
 
-    def abandon(self):
-        """
-        netsnmp appears to deallocate sessions upon receipt of an SNMPv3
-        authentication error. When that occurs, we can't trust any pointers we
-        may have to those objects, and should slash and burn our references.
-
-        See ZEN-23056.
-        """
-        log.debug("Abandoning session %s" % id(self))
-        sessionMap.pop(id(self))
-        self.sess = None
-        self.args = None
-
     def close(self):
-        if not self.sess: return
+        if self.sess is not None:
+            lib.snmp_close(self.sess)
+            self.sess = None
+            self.args = None
+            self._data = None
         if id(self) not in sessionMap:
             log.warn("Unable to find session id %r in sessionMap", self.kw)
             return
-        lib.snmp_close(self.sess)
         del sessionMap[id(self)]
-        self.args = None
 
     def callback(self, pdu):
         pass

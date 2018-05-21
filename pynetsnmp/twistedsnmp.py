@@ -1,5 +1,6 @@
 import netsnmp
 import struct
+import sys
 from CONSTANTS import *
 
 from ipaddr import IPAddress
@@ -185,7 +186,6 @@ class AgentProxy(object):
         self.cmdLineArgs = cmdLineArgs
         self.defers = {}
         self.session = None
-        self.abandoned = False
 
     def _signSafePop(self, d, intkey):
         """
@@ -243,7 +243,6 @@ class AgentProxy(object):
                 message = "packet dropped"
 
             for d in (d for d, rOids in self.defers.itervalues() if not d.called):
-                self.abandon()
                 reactor.callLater(0, d.errback, failure.Failure(Snmpv3Error(message)))
 
             return
@@ -255,7 +254,6 @@ class AgentProxy(object):
         if len(result)==1 and result[0][0] not in oids_requested:
             usmStatsOidStr = asOidStr(result[0][0])
             if usmStatsOidStr in USM_STATS_OIDS:
-                self.abandon()
                 msg = USM_STATS_OIDS.get(usmStatsOidStr)
                 reactor.callLater(0, d.errback, failure.Failure(Snmpv3Error(msg)))
                 return
@@ -283,12 +281,12 @@ class AgentProxy(object):
         reactor.callLater(0, d.errback, failure.Failure(TimeoutError()))
 
     def _getCmdLineArgs(self):
+        if not self.cmdLineArgs:
+            return ()
+
         version = str(self.snmpVersion).lstrip('v')
         if version == '2':
             version += 'c'
-        if self.session is not None:
-            self.session.close()
-            self.session = None
 
         if '%' in self.ip:
             address, interface = self.ip.split('%')
@@ -297,6 +295,7 @@ class AgentProxy(object):
             interface = None
 
         log.debug("AgentProxy._getCmdLineArgs: using google ipaddr on %s" % address)
+
         ipobj = IPAddress(address)
         agent = _get_agent_spec(ipobj, interface, self.port)
 
@@ -309,35 +308,30 @@ class AgentProxy(object):
         return cmdLineArgs
 
     def open(self):
-        self.session = netsnmp.Session(cmdLineArgs=self._getCmdLineArgs())
+        if self.session is not None:
+            self.session.close()
+            self.session = None
+
+        self.session = netsnmp.Session(
+            version=netsnmp.SNMP_VERSION_MAP.get(
+                self.snmpVersion, 
+                netsnmp.SNMP_VERSION_2c),
+            timeout=int(self.timeout),
+            retries=int(self.tries),
+            peername= '%s:%d' % (self.ip, self.port),
+            community=self.community,
+            community_len=len(self.community),
+            cmdLineArgs=self._getCmdLineArgs())
+
         self.session.callback = self.callback
         self.session.timeout = self.timeout_
         self.session.open()
         updateReactor()
 
-    def abandon(self):
-        """
-        netsnmp appears to deallocate sessions upon receipt of an SNMPv3
-        authentication error. When that occurs, we can't trust any pointers we
-        may have to those objects, and should slash and burn our references.
-
-        See ZEN-23056.
-        """
-        if not self.abandoned:
-            self.session.abandon()
-            self.abandoned = True
-
     def close(self):
-        # Changing this to something sane causes zenperfsnmp to blow up
-        # Trac http://dev.zenoss.org/trac/ticket/6354
-        assert self.session
-
-        # ZEN-23056: We can't count on this reference to still be a session, so
-        # we can't close it
-        if not self.abandoned:
+        if self.session is not None:
             self.session.close()
-
-        self.session = None
+            self.session = None
         updateReactor()
 
     def _get(self, oids, timeout=None, retryCount=None):
