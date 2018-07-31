@@ -89,10 +89,10 @@ if _netsnmp_str_version >= ('5','6'):
 
 
 SNMP_VERSION_MAP = {
-    '1': SNMP_VERSION_1,
-    '2c': SNMP_VERSION_2c,
-    '2u': SNMP_VERSION_2u,
-    '3': SNMP_VERSION_3,
+    'v1': SNMP_VERSION_1,
+    'v2c': SNMP_VERSION_2c,
+    'v2u': SNMP_VERSION_2u,
+    'v3': SNMP_VERSION_3,
     'sec': SNMP_VERSION_sec,
     '2p': SNMP_VERSION_2p,
     '2star': SNMP_VERSION_2star,
