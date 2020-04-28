@@ -1,3 +1,4 @@
+import logging
 import os
 from ctypes import *
 from ctypes.util import find_library
@@ -6,6 +7,11 @@ from CONSTANTS import *
 
 # freebsd cannot manage a decent find_library
 import sys
+
+
+def _getLogger(name):
+    return logging.getLogger("zen.pynetsnmp.%s" % name)
+
 
 if sys.platform.find('free') > -1:
     find_library_orig = find_library
@@ -28,9 +34,6 @@ def find_library(name):
         if os.path.exists(pathName):
             return pathName
     return find_library_orig(name)
-
-import logging
-log = logging.getLogger('zen.netsnmp')
 
 c_int_p = c_void_p
 authenticator = CFUNCTYPE(c_char_p, c_int_p, c_char_p, c_int)
@@ -249,19 +252,19 @@ netsnmp_log_message._fields_ = [
     ('msg', c_char_p),
 ]
 PRIORITY_MAP = {
-    LOG_EMERG     : logging.CRITICAL + 2,
-    LOG_ALERT     : logging.CRITICAL + 1,
-    LOG_CRIT      : logging.CRITICAL,
-    LOG_ERR       : logging.ERROR,
-    LOG_WARNING   : logging.WARNING,
-    LOG_NOTICE    : logging.INFO + 1,
-    LOG_INFO      : logging.INFO,
-    LOG_DEBUG     : logging.DEBUG,
-    }
+    LOG_EMERG: logging.CRITICAL,
+    LOG_ALERT: logging.CRITICAL,
+    LOG_CRIT: logging.CRITICAL,
+    LOG_ERR: logging.ERROR,
+    LOG_WARNING: logging.WARNING,
+    LOG_NOTICE: logging.INFO,
+    LOG_INFO: logging.INFO,
+    LOG_DEBUG: logging.DEBUG,
+}
 def netsnmp_logger(a, b, msg):
     msg = cast(msg, netsnmp_log_message_p)
     priority = PRIORITY_MAP.get(msg.contents.priority, logging.DEBUG)
-    log.log(priority, str(msg.contents.msg).strip())
+    _getLogger("netsnmp").log(priority, str(msg.contents.msg).strip())
     return 0
 netsnmp_logger = log_callback(netsnmp_logger)
 lib.snmp_register_callback(SNMP_CALLBACK_LIBRARY,
@@ -379,7 +382,7 @@ decoder = {
     chr(ASN_APP_DOUBLE): lambda pdu: pdu.val.double.contents.value,
     }
 
-def decodeType(var):
+def decodeType(var, log):
     oid = [var.name[i] for i in range(var.name_length)]
     decode = decoder.get(var.type, None)
     if not decode:
@@ -391,12 +394,12 @@ def decodeType(var):
     return oid, decode(var)
 
 
-def getResult(pdu):
+def getResult(pdu, log):
     result = []
     var = pdu.variables
     while var:
         var = var.contents
-        oid, val = decodeType(var)
+        oid, val = decodeType(var, log)
         result.append( (tuple(oid), val) )
         var = var.next_variable
     return result
@@ -420,9 +423,9 @@ def _callback(operation, sp, reqid, pdu, magic):
         elif operation == NETSNMP_CALLBACK_OP_TIMED_OUT:
             sess.timeout(reqid)
         else:
-            log.error("Unknown operation: %d", operation)
+            _getLogger("callback").error("Unknown operation: %d", operation)
     except Exception, ex:
-        log.exception("Exception in _callback %s", ex)
+        _getLogger("callback").exception("Exception in _callback %s", ex)
     return 1
 _callback = netsnmp_callback(_callback)
 
@@ -503,6 +506,7 @@ class Session(object):
         self.sess = None
         self.args = None
         self._data = None  # ref to _CallbackData object
+        self._log = _getLogger("session")
 
     def open(self):
         sess = netsnmp_session()
@@ -510,11 +514,12 @@ class Session(object):
         sess.callback = _callback
         self._data = _CallbackData(session_id=id(self))
         sess.callback_magic = cast(pointer(self._data), c_void_p)
+        sessionMap[id(self)] = self
+        self._log.debug("Client session created session_id=%s", id(self))
         ref = byref(sess)
         self.sess = lib.snmp_open(ref)
         if not self.sess:
             raise SnmpError('snmp_open')
-        sessionMap[id(self)] = self
 
     def awaitTraps(self, peername, fileno = -1, pre_parse_callback=None, debug=False):
         if float_version > 5.299:
@@ -530,7 +535,7 @@ class Session(object):
         elif getattr(lib, "netsnmp_udp6_ctor", marker) is not marker:
             lib.netsnmp_udp6_ctor()
         else:
-            log.debug("Cannot find constructor function for UDP/IPv6 transport domain object.")
+            self._log.debug("Cannot find constructor function for UDP/IPv6 transport domain object.")
         lib.init_snmp("zenoss_app")
         lib.setup_engineID(None, None)
         transport = lib.netsnmp_tdomain_transport(peername, 1, "udp")
@@ -552,6 +557,7 @@ class Session(object):
         self._data = _CallbackData(session_id=id(self))
         sess.callback_magic = cast(pointer(self._data), c_void_p)
         sessionMap[id(self)] = self
+        self._log.debug("Server session created session_id=%s", id(self))
 
         # sess.authenticator = None
         sess.isAuthoritative = SNMP_SESS_UNKNOWNAUTH
@@ -560,7 +566,7 @@ class Session(object):
             raise SnmpError('snmp_add')
 
     def create_users(self, users):
-        log.debug("create_users: Creating %s users." % len(users))
+        self._log.debug("create_users: Creating %s users.", len(users))
         for user in users:
             if user.version == 3:
                 try:
@@ -573,9 +579,9 @@ class Session(object):
                                       user.privacy_protocol, # DES or AES
                                       user.privacy_passphrase])
                     lib.usm_parse_create_usmUser("createUser", line)
-                    log.debug("create_users: created user: %s" % user)
+                    self._log.debug("create_users: created user: %s", user)
                 except StandardError, e:
-                    log.debug("create_users: could not create user: %s: (%s: %s)" % (user, e.__class__.__name__, e))
+                    self._log.debug("create_users: could not create user: %s: (%s: %s)", user, e.__class__.__name__, e)
 
     def sendTrap(self, trapoid, varbinds=None):
         if '-v1' in self.cmdLineArgs:
@@ -617,9 +623,12 @@ class Session(object):
             self.args = None
             self._data = None
         if id(self) not in sessionMap:
-            log.warn("Unable to find session id %r in sessionMap", self.kw)
+            self._log.warn(
+                "Session ID not found session_id=%s %r", id(self), self.kw,
+            )
             return
         del sessionMap[id(self)]
+        self._log.debug("Session closed session_id=%s", id(self))
 
     def callback(self, pdu):
         pass
@@ -637,7 +646,7 @@ class Session(object):
             lib.snmp_add_null_var(req, oid, len(oid))
         response = netsnmp_pdu_p()
         if lib.snmp_synch_response(self.sess, req, byref(response)) == 0:
-            result = dict(getResult(response.contents))
+            result = dict(getResult(response.contents, self._log))
             lib.snmp_free_pdu(response)
             return result
 
@@ -648,13 +657,13 @@ class Session(object):
             snmperr = c_int()
             errstring = c_char_p()
             lib.snmp_error(self.sess, byref(cliberr), byref(snmperr), byref(errstring));
-            fmt = "Session.%s: snmp_send cliberr=%s, snmperr=%s, errstring=%s"
-            msg = fmt % (send_type, cliberr.value, snmperr.value, errstring.value)
-            log.debug(msg)
+            msg_fmt = "%s: snmp_send cliberr=%s, snmperr=%s, errstring=%s"
+            msg_args = (send_type, cliberr.value, snmperr.value, errstring.value)
+            self._log.debug(msg_fmt, *msg_args)
             lib.snmp_free_pdu(req)
             if snmperr.value == SNMPERR_TIMEOUT:
                 raise SnmpTimeoutError()
-            raise SnmpError(msg)
+            raise SnmpError(msg_fmt % msg_args)
 
     def get(self, oids):
         req = self._create_request(SNMP_MSG_GET)
@@ -682,7 +691,7 @@ class Session(object):
         oid = mkoid(root)
         lib.snmp_add_null_var(req, oid, len(oid))
         send_status = lib.snmp_send(self.sess, req)
-        log.debug("Session.walk: send_status=%s" % send_status)
+        self._log.debug("walk: send_status=%s", send_status)
         self._handle_send_status(req, send_status, 'walk')
         return req.contents.reqid
 
