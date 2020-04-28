@@ -548,14 +548,16 @@ class Session(object):
         sess.retries = SNMP_DEFAULT_RETRIES
         sess.timeout = SNMP_DEFAULT_TIMEOUT
         sess.callback = _callback
+
         self._data = _CallbackData(session_id=id(self))
         sess.callback_magic = cast(pointer(self._data), c_void_p)
+        sessionMap[id(self)] = self
+
         # sess.authenticator = None
         sess.isAuthoritative = SNMP_SESS_UNKNOWNAUTH
         rc = lib.snmp_add(self.sess, transport, pre_parse_callback, None)
         if not rc:
             raise SnmpError('snmp_add')
-        sessionMap[id(self)] = self
 
     def create_users(self, users):
         log.debug("create_users: Creating %s users." % len(users))
