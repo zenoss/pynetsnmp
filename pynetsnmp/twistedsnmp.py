@@ -1,3 +1,4 @@
+import logging
 import netsnmp
 import struct
 import sys
@@ -11,8 +12,6 @@ from twisted.internet.interfaces import IReadDescriptor
 from twisted.python import failure
 from twisted.internet import defer
 
-import logging
-log = logging.getLogger('zen.twistedsnmp')
 
 class Timer(object):
     callLater = None
@@ -71,6 +70,7 @@ def updateReactor():
     "Add/remove event handlers for SNMP file descriptors and timers"
 
     fds, t = netsnmp.snmp_select_info()
+    log = netsnmp._getLogger("updateReactor")
     if log.getEffectiveLevel() < logging.DEBUG:
         log.debug('reactor settings: %r, %r', fds, t)
     for fd in fds:
@@ -186,6 +186,7 @@ class AgentProxy(object):
         self.cmdLineArgs = cmdLineArgs
         self.defers = {}
         self.session = None
+        self._log = netsnmp._getLogger("agentproxy")
 
     def _signSafePop(self, d, intkey):
         """
@@ -200,7 +201,7 @@ class AgentProxy(object):
             return d.pop(intkey)
         except KeyError as ex:
             if intkey < 0:
-                log.debug("Negative ID for _signSafePop: %d" % intkey)
+                self._log.debug("Negative ID for _signSafePop: %s", intkey)
                 #convert to unsigned, try that key
                 uintkey = struct.unpack("I", struct.pack("i", intkey))[0]
                 try:
@@ -228,12 +229,12 @@ class AgentProxy(object):
                     # Some devices use usmStatsNotInTimeWindows as a normal part of the SNMPv3 handshake (JIRA-1565)
                     # net-snmp automatically retries the request with the previous request_id and the values for
                     # msgAuthoritativeEngineBoots and msgAuthoritativeEngineTime from this error packet
-                    log.debug("Received a usmStatsNotInTimeWindows error. Some devices use usmStatsNotInTimeWindows as a normal part of the SNMPv3 handshake.")
+                    self._log.debug("Received a usmStatsNotInTimeWindows error. Some devices use usmStatsNotInTimeWindows as a normal part of the SNMPv3 handshake.")
                     return
                     
                 if usmStatsOidStr == ".1.3.6.1.2.1.1.1.0":
                     # Some devices (Cisco Nexus/MDS) use sysDescr as a normal part of the SNMPv3 handshake (JIRA-7943)
-                    log.debug("Received sysDescr during handshake. Some devices use sysDescr as a normal part of the SNMPv3 handshake.")
+                    self._log.debug("Received sysDescr during handshake. Some devices use sysDescr as a normal part of the SNMPv3 handshake.")
                     return
 
                 default_msg = "packet dropped (OID: {0})".format(usmStatsOidStr)
@@ -272,7 +273,7 @@ class AgentProxy(object):
                 return
             else:
                 result = []
-                log.warning(message + '. OIDS: {0}'.format(oids_requested))
+                self._log.warning(message + '. OIDS: %s', oids_requested)
 
         reactor.callLater(0, d.callback, result)
 
@@ -294,7 +295,7 @@ class AgentProxy(object):
             address = self.ip
             interface = None
 
-        log.debug("AgentProxy._getCmdLineArgs: using google ipaddr on %s" % address)
+        self._log.debug("AgentProxy._getCmdLineArgs: using google ipaddr on %s", address)
 
         ipobj = IPAddress(address)
         agent = _get_agent_spec(ipobj, interface, self.port)
