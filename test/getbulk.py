@@ -1,15 +1,17 @@
+import logging
 import netsnmp
 import twistedsnmp
 import sys
 
 from twisted.internet import reactor
 
+
 class Table(netsnmp.Session):
 
     root = None
     max = None
 
-    def getTable(self, root, max = 40):
+    def getTable(self, root, max=40):
         self.max = max
         self.root = root
         self.getbulk(0, self.max, [root])
@@ -20,12 +22,12 @@ class Table(netsnmp.Session):
             reactor.stop()
 
     def callback(self, pdu):
-        results = netsnmp.getResult(pdu)
+        results = netsnmp.getResult(pdu, self._log)
         for oid, value in results:
-            if oid[:len(self.root)] != self.root:
+            if oid[: len(self.root)] != self.root:
                 self.stop("table end")
                 return
-            print '.'.join(map(str, oid)), ':', `value`
+            print ".".join(map(str, oid)), ":", repr(value)
         print
         if not results:
             self.stop("empty result")
@@ -35,22 +37,25 @@ class Table(netsnmp.Session):
     def timeout(self, reqid):
         self.stop("Timeout")
 
+
 def main():
-    name = 'localhost'
-    community = 'public'
+    name = "localhost"
+    community = "public"
     if len(sys.argv) >= 2:
         name = sys.argv[1]
-    oid = (1,3,6,1,2,1,25,4,2,1,2)
-    t = Table(version = netsnmp.SNMP_VERSION_2c,
-              peername = name,
-              community = community,
-              community_len = len(community))
+    oid = (1, 3, 6, 1, 2, 1, 25, 4, 2, 1, 2)
+    t = Table(
+        version=netsnmp.SNMP_VERSION_2c,
+        peername=name,
+        community=community,
+        community_len=len(community),
+    )
     t.open()
     t.getTable(oid)
     twistedsnmp.updateReactor()
     reactor.run()
 
-if __name__ == '__main__':
-    import logging
+
+if __name__ == "__main__":
     logging.basicConfig()
     main()
