@@ -1,31 +1,33 @@
+import logging
 import netsnmp
 import twistedsnmp
 import sys
 
 from twisted.internet import reactor, defer
-from twisted.python import failure
+
 
 class Walker(netsnmp.Session):
 
     lastOid = None
 
-    def stop(self, why = None):
+    def stop(self, why=None):
         host = self.sess.contents.peername
-        print "stopping: %s %s" % (host, why or '')
+        print "stopping: %s %s" % (host, why or "")
         if not why:
-            self.defer.callback( (host, self.results) )
+            self.defer.callback((host, self.results))
         else:
-            self.defer.errback(Exception('%s on %s' % (why, host)))
+            self.defer.errback(Exception("%s on %s" % (why, host)))
         import gc
+
         gc.collect()
 
     def callback(self, pdu):
-        results = netsnmp.getResult(pdu)
+        results = netsnmp.getResult(pdu, self._log)
         oid, value = results[0]
         if oid <= self.lastOid:
             self.stop()
         else:
-            self.results.append( (oid, value) )
+            self.results.append((oid, value))
             self.lastOid = oid
             self.walk(oid)
 
@@ -39,6 +41,7 @@ class Walker(netsnmp.Session):
         self.walk((1,))
         return self.defer
 
+
 def stop(results):
     for success, values in results:
         if success:
@@ -49,21 +52,24 @@ def stop(results):
     if reactor.running:
         reactor.stop()
 
+
 def main():
     import getopt
+
     # from snmp_parse_args.c
-    opts = 'Y:VhHm:M:O:I:P:D:dv:r:t:c:Z:e:E:n:u:l:x:X:a:A:p:T:-:3:s:S:L:'
+    opts = "Y:VhHm:M:O:I:P:D:dv:r:t:c:Z:e:E:n:u:l:x:X:a:A:p:T:-:3:s:S:L:"
     args, hosts = getopt.getopt(sys.argv[1:], opts)
     if not hosts:
-        hosts = ['localhost']
+        hosts = ["localhost"]
     d = defer.DeferredList(
         [Walker(peername=host, cmdLineArgs=args).start() for host in hosts],
-        consumeErrors=True)
+        consumeErrors=True,
+    )
     d.addBoth(stop)
     twistedsnmp.updateReactor()
     reactor.run()
 
-if __name__ == '__main__':
-    import logging
+
+if __name__ == "__main__":
     logging.basicConfig()
     main()

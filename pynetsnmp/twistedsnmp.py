@@ -214,7 +214,7 @@ class AgentProxy(object):
     def callback(self, pdu):
         """netsnmp session callback"""
         result = []
-        response = netsnmp.getResult(pdu)
+        response = netsnmp.getResult(pdu, self._log)
 
         try:
             d, oids_requested = self._signSafePop(self.defers, pdu.reqid)
