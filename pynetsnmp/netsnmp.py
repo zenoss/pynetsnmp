@@ -96,6 +96,9 @@ if _netsnmp_str_version >= ('5','8'):
     msgMaxSize = [('trap_stats', c_void_p)]
     # Version >= 5.8 broke binary compatibility, adding the msgMaxSize member to the snmp_pdu struct
     msgMaxSize = [('msgMaxSize', c_long)]
+    # Version >= 5.8 broke binary compatibility, doubling the size of these constants used for struct sizes
+    USM_AUTH_KU_LEN = 64
+    USM_PRIV_KU_LEN = 64
 
 
 SNMP_VERSION_MAP = {
