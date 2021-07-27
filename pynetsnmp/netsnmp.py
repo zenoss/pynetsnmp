@@ -74,6 +74,7 @@ _netsnmp_str_version = tuple(str(v) for v in version.split('.'))
 localname = []
 paramName = []
 transportConfig = []
+trapStats = []
 msgMaxSize = []
 if float_version < 5.099:
     raise ImportError("netsnmp version 5.1 or greater is required")
@@ -91,6 +92,8 @@ if _netsnmp_str_version >= ('5','6'):
     class netsnmp_container_s(Structure): pass
     transportConfig = [('transport_configuration', POINTER(netsnmp_container_s))]
 if _netsnmp_str_version >= ('5','8'):
+    # Version >= 5.8 broke binary compatibility, adding the trap_stats member to the netsnmp_session struct
+    msgMaxSize = [('trap_stats', c_void_p)]
     # Version >= 5.8 broke binary compatibility, adding the msgMaxSize member to the snmp_pdu struct
     msgMaxSize = [('msgMaxSize', c_long)]
 
@@ -158,6 +161,7 @@ netsnmp_session._fields_ = [
         ('securityLevel', c_int),
 
         ] + paramName + [
+        ] + trapStats + [
 
         ('securityInfo', c_void_p),
 
