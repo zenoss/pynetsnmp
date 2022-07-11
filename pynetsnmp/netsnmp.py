@@ -1,12 +1,92 @@
+from __future__ import absolute_import
+
 import logging
 import os
-from ctypes import *
-from ctypes.util import find_library
-import CONSTANTS
-from CONSTANTS import *
-
-# freebsd cannot manage a decent find_library
 import sys
+
+from ctypes import (
+    CDLL,
+    CFUNCTYPE,
+    POINTER,
+    RTLD_GLOBAL,
+    Structure,
+    Union,
+    byref,
+    c_byte,
+    c_char,
+    c_char_p,
+    c_double,
+    c_float,
+    c_int,
+    c_int32,
+    c_long,
+    c_size_t,
+    c_ubyte,
+    c_uint,
+    c_uint32,
+    c_ulong,
+    c_ushort,
+    c_void_p,
+    cast,
+    create_string_buffer,
+    pointer,
+    sizeof,
+    string_at,
+)
+from ctypes.util import find_library
+
+from . import CONSTANTS
+from .CONSTANTS import (
+    ASN_APP_DOUBLE,
+    ASN_APP_FLOAT,
+    ASN_BIT_STR,
+    ASN_COUNTER,
+    ASN_COUNTER64,
+    ASN_GAUGE,
+    ASN_INTEGER,
+    ASN_IPADDRESS,
+    ASN_NULL,
+    ASN_OBJECT_ID,
+    ASN_OCTET_STR,
+    ASN_TIMETICKS,
+    LOG_ALERT,
+    LOG_CRIT,
+    LOG_DEBUG,
+    LOG_EMERG,
+    LOG_ERR,
+    LOG_INFO,
+    LOG_NOTICE,
+    LOG_WARNING,
+    MAX_OID_LEN,
+    NETSNMP_CALLBACK_OP_RECEIVED_MESSAGE,
+    NETSNMP_CALLBACK_OP_TIMED_OUT,
+    NETSNMP_DS_LIB_APPTYPE,
+    NETSNMP_DS_LIBRARY_ID,
+    NETSNMP_LOGHANDLER_CALLBACK,
+    SNMP_CALLBACK_LIBRARY,
+    SNMP_CALLBACK_LOGGING,
+    SNMP_DEFAULT_COMMUNITY_LEN,
+    SNMP_DEFAULT_PEERNAME,
+    SNMP_DEFAULT_RETRIES,
+    SNMP_DEFAULT_TIMEOUT,
+    SNMP_DEFAULT_VERSION,
+    SNMPERR_TIMEOUT,
+    SNMP_MSG_GET,
+    SNMP_MSG_GETBULK,
+    SNMP_MSG_GETNEXT,
+    SNMP_MSG_TRAP,
+    SNMP_MSG_TRAP2,
+    SNMP_SESS_UNKNOWNAUTH,
+    SNMP_VERSION_1,
+    SNMP_VERSION_2c,
+    SNMP_VERSION_2p,
+    SNMP_VERSION_2star,
+    SNMP_VERSION_2u,
+    SNMP_VERSION_3,
+    SNMP_VERSION_sec,
+    USM_AUTH_KU_LEN,
+    USM_PRIV_KU_LEN,
+)
 
 
 def _getLogger(name):
@@ -103,12 +183,14 @@ if float_version > 5.199:
     if float_version > 5.299:
         paramName = [("paramName", c_char_p)]
 if _netsnmp_str_version >= ("5", "6"):
-    # Versions >= 5.6 and < 5.6.1.1 broke binary compatibility and changed oid type from c_long to c_uint32. This works
-    # around the issue for these platforms to allow things to work properly.
+    # Versions >= 5.6 and < 5.6.1.1 broke binary compatibility and changed
+    # oid type from c_long to c_uint32. This works around the issue for these
+    # platforms to allow things to work properly.
     if _netsnmp_str_version <= ("5", "6", "1", "1"):
         oid = c_uint32
 
-    # Versions >= 5.6 broke binary compatibility by adding transport specific configuration
+    # Versions >= 5.6 broke binary compatibility by adding transport
+    # specific configuration.
     class netsnmp_container_s(Structure):
         pass
 
@@ -271,6 +353,7 @@ netsnmp_pdu._fields_ = [
 ]
 
 netsnmp_pdu_p = POINTER(netsnmp_pdu)
+
 
 # Redirect netsnmp logging to our log
 class netsnmp_log_message(Structure):
@@ -615,7 +698,8 @@ class Session(object):
             lib.netsnmp_udp6_ctor()
         else:
             self._log.debug(
-                "Cannot find constructor function for UDP/IPv6 transport domain object."
+                "Cannot find constructor function for UDP/IPv6 transport "
+                "domain object."
             )
         lib.init_snmp("zenoss_app")
         lib.setup_engineID(None, None)
@@ -681,9 +765,11 @@ class Session(object):
         if "-v1" in self.cmdLineArgs:
             pdu = lib.snmp_pdu_create(SNMP_MSG_TRAP)
             if hasattr(self, "agent_addr"):
-                # pdu.contents is a netsnmp_pdu, defined above, therefore its fields are c types
-                # self.agent_addr is an ipv4 address, and the v1 trap wants a c array of 4 unsigned bytes,
-                # so chop it up, make the octets ints, then a bytearray from that will cast.
+                # pdu.contents is a netsnmp_pdu, defined above, therefore its
+                # fields are c types.
+                # self.agent_addr is an ipv4 address, and the v1 trap wants
+                # a c array of 4 unsigned bytes, so chop it up, make the
+                # octets ints, then a bytearray from that will cast.
                 pdu.contents.agent_addr = (c_ubyte * 4)(
                     *(bytearray([int(x) for x in self.agent_addr.split(".")]))
                 )

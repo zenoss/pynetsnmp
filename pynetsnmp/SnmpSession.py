@@ -1,9 +1,8 @@
-from __future__ import print_function
+from __future__ import absolute_import
 
-__doc__ = "Backwards compatible API for SnmpSession"
+"""Backwards compatible API for SnmpSession"""
 
-import netsnmp
-from ctypes import *
+from . import netsnmp
 
 
 class SnmpSession(object):
@@ -39,11 +38,3 @@ class SnmpSession(object):
             return self.session.sget([oid])
         finally:
             self.session.close()
-
-
-if __name__ == "__main__":
-    session = SnmpSession("127.0.0.1", timeout=1.5, port=161)
-    session.community = "public"
-    print(session.get(".1.3.6.1.2.1.1.5.0"))
-    session.community = "xyzzy"
-    print(session.get(".1.3.6.1.2.1.1.5.0"))

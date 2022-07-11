@@ -1,14 +1,36 @@
+from __future__ import absolute_import
+
 import logging
-import netsnmp
 import struct
-from CONSTANTS import *
 
 from ipaddr import IPAddress
-
 from twisted.internet import reactor
 from twisted.internet.error import TimeoutError
 from twisted.python import failure
 from twisted.internet import defer
+
+from . import netsnmp
+from .CONSTANTS import (
+    SNMP_ERR_AUTHORIZATIONERROR,
+    SNMP_ERR_BADVALUE,
+    SNMP_ERR_COMMITFAILED,
+    SNMP_ERR_GENERR,
+    SNMP_ERR_INCONSISTENTNAME,
+    SNMP_ERR_INCONSISTENTVALUE,
+    SNMP_ERR_NOACCESS,
+    SNMP_ERR_NOCREATION,
+    SNMP_ERR_NOERROR,
+    SNMP_ERR_NOSUCHNAME,
+    SNMP_ERR_NOTWRITABLE,
+    SNMP_ERR_READONLY,
+    SNMP_ERR_RESOURCEUNAVAILABLE,
+    SNMP_ERR_TOOBIG,
+    SNMP_ERR_UNDOFAILED,
+    SNMP_ERR_WRONGENCODING,
+    SNMP_ERR_WRONGLENGTH,
+    SNMP_ERR_WRONGTYPE,
+    SNMP_ERR_WRONGVALUE,
+)
 
 
 class Timer(object):
@@ -117,7 +139,8 @@ def _get_agent_spec(ipobj, interface, port):
         if ipobj.is_link_local:
             if interface is None:
                 raise RuntimeError(
-                    "Cannot create agent specification from link local IPv6 address without an interface"
+                    "Cannot create agent specification from link local "
+                    "IPv6 address without an interface"
                 )
             else:
                 agent = "udp6:[%s%%%s]:%s" % (
@@ -152,13 +175,22 @@ class Snmpv3Error(SnmpError):
 
 USM_STATS_OIDS = {
     # usmStatsWrongDigests
-    ".1.3.6.1.6.3.15.1.1.5.0": "check zSnmpAuthType and zSnmpAuthPassword, packet did not include the expected digest value",
+    ".1.3.6.1.6.3.15.1.1.5.0": (
+        "check zSnmpAuthType and zSnmpAuthPassword, "
+        "packet did not include the expected digest value"
+    ),
     # usmStatsUnknownUserNames
-    ".1.3.6.1.6.3.15.1.1.3.0": "check zSnmpSecurityName, packet referenced an unknown user",
+    ".1.3.6.1.6.3.15.1.1.3.0": (
+        "check zSnmpSecurityName, packet referenced an unknown user"
+    ),
     # usmStatsUnsupportedSecLevels
-    ".1.3.6.1.6.3.15.1.1.1.0": "packet requested an unknown or unavailable security level",
+    ".1.3.6.1.6.3.15.1.1.1.0": (
+        "packet requested an unknown or unavailable security level"
+    ),
     # usmStatsDecryptionErrors
-    ".1.3.6.1.6.3.15.1.1.6.0": "check zSnmpPrivType, packet could not be decrypted",
+    ".1.3.6.1.6.3.15.1.1.6.0": (
+        "check zSnmpPrivType, packet could not be decrypted"
+    ),
 }
 
 
@@ -199,12 +231,13 @@ class AgentProxy(object):
 
     def _signSafePop(self, d, intkey):
         """
-        Attempt to pop the item at intkey from dictionary d. Upon failure, try to convert intkey
-        from a signed to an unsigned integer and try to pop again.
+        Attempt to pop the item at intkey from dictionary d.
+        Upon failure, try to convert intkey from a signed to an unsigned
+        integer and try to pop again.
 
-        This addresses potential integer rollover issues caused by the fact that netsnmp_pdu.reqid
-        is a c_long and the netsnmp_callback function pointer definition specifies it as a c_int.
-        See ZEN-4481.
+        This addresses potential integer rollover issues caused by the fact
+        that netsnmp_pdu.reqid is a c_long and the netsnmp_callback function
+        pointer definition specifies it as a c_int.  See ZEN-4481.
         """
         try:
             return d.pop(intkey)
@@ -216,7 +249,8 @@ class AgentProxy(object):
                 try:
                     return d.pop(uintkey)
                 except KeyError:
-                    # nothing by the unsigned key either, throw the original KeyError for consistency
+                    # Nothing by the unsigned key either,
+                    # throw the original KeyError for consistency
                     raise ex
             raise
 
@@ -235,18 +269,25 @@ class AgentProxy(object):
                 usmStatsOidStr = asOidStr(usmStatsOid)
 
                 if usmStatsOidStr == ".1.3.6.1.6.3.15.1.1.2.0":
-                    # Some devices use usmStatsNotInTimeWindows as a normal part of the SNMPv3 handshake (JIRA-1565)
-                    # net-snmp automatically retries the request with the previous request_id and the values for
-                    # msgAuthoritativeEngineBoots and msgAuthoritativeEngineTime from this error packet
+                    # Some devices use usmStatsNotInTimeWindows as a normal
+                    # part of the SNMPv3 handshake (JIRA-1565).
+                    # net-snmp automatically retries the request with the
+                    # previous request_id and the values for
+                    # msgAuthoritativeEngineBoots and
+                    # msgAuthoritativeEngineTime from this error packet.
                     self._log.debug(
-                        "Received a usmStatsNotInTimeWindows error. Some devices use usmStatsNotInTimeWindows as a normal part of the SNMPv3 handshake."
+                        "Received a usmStatsNotInTimeWindows error. Some "
+                        "devices use usmStatsNotInTimeWindows as a normal "
+                        "part of the SNMPv3 handshake."
                     )
                     return
 
                 if usmStatsOidStr == ".1.3.6.1.2.1.1.1.0":
-                    # Some devices (Cisco Nexus/MDS) use sysDescr as a normal part of the SNMPv3 handshake (JIRA-7943)
+                    # Some devices (Cisco Nexus/MDS) use sysDescr as a normal
+                    # part of the SNMPv3 handshake (JIRA-7943)
                     self._log.debug(
-                        "Received sysDescr during handshake. Some devices use sysDescr as a normal part of the SNMPv3 handshake."
+                        "Received sysDescr during handshake. Some devices use "
+                        "sysDescr as a normal part of the SNMPv3 handshake."
                     )
                     return
 

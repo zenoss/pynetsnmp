@@ -71,4 +71,3 @@ def make_imports():
 
 if __name__ == "__main__":
     make_imports()
-    from CONSTANTS import *  # check the result

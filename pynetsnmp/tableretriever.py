@@ -1,5 +1,8 @@
+from __future__ import absolute_import
+
 from twisted.internet import defer
-from twistedsnmp import asOidStr, asOid
+
+from .twistedsnmp import asOidStr, asOid
 
 
 class _TableStatus(object):
