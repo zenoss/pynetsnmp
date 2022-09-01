@@ -1,20 +1,20 @@
 import logging
 import netsnmp
 import struct
-import sys
 from CONSTANTS import *
 
 from ipaddr import IPAddress
 
 from twisted.internet import reactor
 from twisted.internet.error import TimeoutError
-from twisted.internet.interfaces import IReadDescriptor
 from twisted.python import failure
 from twisted.internet import defer
 
 
 class Timer(object):
     callLater = None
+
+
 timer = Timer()
 fdMap = {}
 
@@ -32,13 +32,14 @@ PDU_ERRORS = {
     SNMP_ERR_WRONGVALUE: "Bad value",
     SNMP_ERR_NOCREATION: "No creation",
     SNMP_ERR_INCONSISTENTVALUE: "Inconsistent value",
-    SNMP_ERR_RESOURCEUNAVAILABLE:  "Resource unavailable",
+    SNMP_ERR_RESOURCEUNAVAILABLE: "Resource unavailable",
     SNMP_ERR_COMMITFAILED: "Commit failed",
     SNMP_ERR_UNDOFAILED: "Undo failed",
     SNMP_ERR_AUTHORIZATIONERROR: "Authorization error",
     SNMP_ERR_NOTWRITABLE: "Not writable",
     SNMP_ERR_INCONSISTENTNAME: "Inconsistent name",
-    }
+}
+
 
 def checkTimeouts():
     "Handle timeouts for Net-SNMP"
@@ -47,11 +48,11 @@ def checkTimeouts():
     updateReactor()
 
 
-class SnmpReader: #(IReadDescriptor):
+class SnmpReader:  # (IReadDescriptor):
     "Respond to input events"
 
     def logPrefix(self):
-        return 'SnmpReader'
+        return "SnmpReader"
 
     def __init__(self, fd):
         self.fd = fd
@@ -66,13 +67,14 @@ class SnmpReader: #(IReadDescriptor):
     def connectionLost(self, why):
         del fdMap[self.fd]
 
+
 def updateReactor():
     "Add/remove event handlers for SNMP file descriptors and timers"
 
     fds, t = netsnmp.snmp_select_info()
     log = netsnmp._getLogger("updateReactor")
     if log.getEffectiveLevel() < logging.DEBUG:
-        log.debug('reactor settings: %r, %r', fds, t)
+        log.debug("reactor settings: %r, %r", fds, t)
     for fd in fds:
         if fd not in fdMap:
             reader = SnmpReader(fd)
@@ -90,19 +92,21 @@ def updateReactor():
     if t is not None:
         timer.callLater = reactor.callLater(t, checkTimeouts)
 
+
 class SnmpNameError(Exception):
     def __init__(self, oid):
-        Exception.__init__(self, 'Bad Name', oid)
+        Exception.__init__(self, "Bad Name", oid)
 
 
 def asOidStr(oid):
     """converts an oid int sequence to an oid string"""
-    return '.'+'.'.join([str(x) for x in oid])
+    return "." + ".".join([str(x) for x in oid])
 
 
 def asOid(oidStr):
     """converts an OID string into a tuple of integers"""
-    return tuple([int(x) for x in oidStr.strip('.').split('.')])
+    return tuple([int(x) for x in oidStr.strip(".").split(".")])
+
 
 def _get_agent_spec(ipobj, interface, port):
     """take a google ipaddr object and port number and produce a net-snmp
@@ -112,17 +116,26 @@ def _get_agent_spec(ipobj, interface, port):
     elif ipobj.version == 6:
         if ipobj.is_link_local:
             if interface is None:
-                raise RuntimeError("Cannot create agent specification from link local IPv6 address without an interface")
+                raise RuntimeError(
+                    "Cannot create agent specification from link local IPv6 address without an interface"
+                )
             else:
-                agent = "udp6:[%s%%%s]:%s" % (ipobj.compressed, interface, port)
+                agent = "udp6:[%s%%%s]:%s" % (
+                    ipobj.compressed,
+                    interface,
+                    port,
+                )
         else:
             agent = "udp6:[%s]:%s" % (ipobj.compressed, port)
     else:
-        raise RuntimeError("Cannot create agent specification for IP address version: %s" % ipobj.version)
+        raise RuntimeError(
+            "Cannot create agent specification for IP address version: %s"
+            % ipobj.version
+        )
     return agent
 
-class SnmpError(Exception):
 
+class SnmpError(Exception):
     def __init__(self, message, *args, **kwargs):
         self.message = message
 
@@ -132,51 +145,47 @@ class SnmpError(Exception):
     def __repr__(self):
         return self.message
 
-class Snmpv3Error(SnmpError): 
+
+class Snmpv3Error(SnmpError):
     pass
 
+
 USM_STATS_OIDS = {
-
     # usmStatsWrongDigests
-    ".1.3.6.1.6.3.15.1.1.5.0":
-    "check zSnmpAuthType and zSnmpAuthPassword, packet did not include the expected digest value",
-
+    ".1.3.6.1.6.3.15.1.1.5.0": "check zSnmpAuthType and zSnmpAuthPassword, packet did not include the expected digest value",
     # usmStatsUnknownUserNames
-    ".1.3.6.1.6.3.15.1.1.3.0":
-    "check zSnmpSecurityName, packet referenced an unknown user",
-
+    ".1.3.6.1.6.3.15.1.1.3.0": "check zSnmpSecurityName, packet referenced an unknown user",
     # usmStatsUnsupportedSecLevels
-    ".1.3.6.1.6.3.15.1.1.1.0":
-    "packet requested an unknown or unavailable security level",
-
+    ".1.3.6.1.6.3.15.1.1.1.0": "packet requested an unknown or unavailable security level",
     # usmStatsDecryptionErrors
-    ".1.3.6.1.6.3.15.1.1.6.0":
-    "check zSnmpPrivType, packet could not be decrypted"
-
+    ".1.3.6.1.6.3.15.1.1.6.0": "check zSnmpPrivType, packet could not be decrypted",
 }
+
 
 class AgentProxy(object):
     """The public methods on AgentProxy (get, walk, getbulk) expect input OIDs
-    to be strings, and the result they produce is a dictionary.  The 
+    to be strings, and the result they produce is a dictionary.  The
     dictionary keys are OID strings and the values are the values returned by
     the SNMP requests.
-    
+
     The private methods (_get, _walk, _getbulk) expect input OIDs to be tuples
-    of integers.  These methods generate a result that is a list of pairs, 
+    of integers.  These methods generate a result that is a list of pairs,
     each pair consisting of the OID string and the value that is returned by
-    the SNMP query. The list is ordered correctly by the OID (i.e. it is not 
+    the SNMP query. The list is ordered correctly by the OID (i.e. it is not
     ordered by the OID string)."""
 
-    def __init__(self,
-                 ip,
-                 port=161, 
-                 community='public',
-                 snmpVersion = '1', 
-                 protocol=None,
-                 allowCache = False,
-                 timeout = 1.5,
-                 tries = 3,
-                 cmdLineArgs = ()):
+    def __init__(
+        self,
+        ip,
+        port=161,
+        community="public",
+        snmpVersion="1",
+        protocol=None,
+        allowCache=False,
+        timeout=1.5,
+        tries=3,
+        cmdLineArgs=(),
+    ):
         self.ip = ip
         self.port = port
         self.community = community
@@ -202,12 +211,12 @@ class AgentProxy(object):
         except KeyError as ex:
             if intkey < 0:
                 self._log.debug("Negative ID for _signSafePop: %s", intkey)
-                #convert to unsigned, try that key
+                # convert to unsigned, try that key
                 uintkey = struct.unpack("I", struct.pack("i", intkey))[0]
                 try:
                     return d.pop(uintkey)
                 except KeyError:
-                    #nothing by the unsigned key either, throw the original KeyError for consistency
+                    # nothing by the unsigned key either, throw the original KeyError for consistency
                     raise ex
             raise
 
@@ -229,22 +238,32 @@ class AgentProxy(object):
                     # Some devices use usmStatsNotInTimeWindows as a normal part of the SNMPv3 handshake (JIRA-1565)
                     # net-snmp automatically retries the request with the previous request_id and the values for
                     # msgAuthoritativeEngineBoots and msgAuthoritativeEngineTime from this error packet
-                    self._log.debug("Received a usmStatsNotInTimeWindows error. Some devices use usmStatsNotInTimeWindows as a normal part of the SNMPv3 handshake.")
-                    return
-                    
-                if usmStatsOidStr == ".1.3.6.1.2.1.1.1.0":
-                    # Some devices (Cisco Nexus/MDS) use sysDescr as a normal part of the SNMPv3 handshake (JIRA-7943)
-                    self._log.debug("Received sysDescr during handshake. Some devices use sysDescr as a normal part of the SNMPv3 handshake.")
+                    self._log.debug(
+                        "Received a usmStatsNotInTimeWindows error. Some devices use usmStatsNotInTimeWindows as a normal part of the SNMPv3 handshake."
+                    )
                     return
 
-                default_msg = "packet dropped (OID: {0})".format(usmStatsOidStr)
+                if usmStatsOidStr == ".1.3.6.1.2.1.1.1.0":
+                    # Some devices (Cisco Nexus/MDS) use sysDescr as a normal part of the SNMPv3 handshake (JIRA-7943)
+                    self._log.debug(
+                        "Received sysDescr during handshake. Some devices use sysDescr as a normal part of the SNMPv3 handshake."
+                    )
+                    return
+
+                default_msg = "packet dropped (OID: {0})".format(
+                    usmStatsOidStr
+                )
                 message = USM_STATS_OIDS.get(usmStatsOidStr, default_msg)
                 break
             else:
                 message = "packet dropped"
 
-            for d in (d for d, rOids in self.defers.itervalues() if not d.called):
-                reactor.callLater(0, d.errback, failure.Failure(Snmpv3Error(message)))
+            for d in (
+                d for d, rOids in self.defers.itervalues() if not d.called
+            ):
+                reactor.callLater(
+                    0, d.errback, failure.Failure(Snmpv3Error(message))
+                )
 
             return
 
@@ -252,11 +271,13 @@ class AgentProxy(object):
             if isinstance(value, tuple):
                 value = asOidStr(value)
             result.append((oid, value))
-        if len(result)==1 and result[0][0] not in oids_requested:
+        if len(result) == 1 and result[0][0] not in oids_requested:
             usmStatsOidStr = asOidStr(result[0][0])
             if usmStatsOidStr in USM_STATS_OIDS:
                 msg = USM_STATS_OIDS.get(usmStatsOidStr)
-                reactor.callLater(0, d.errback, failure.Failure(Snmpv3Error(msg)))
+                reactor.callLater(
+                    0, d.errback, failure.Failure(Snmpv3Error(msg))
+                )
                 return
             elif usmStatsOidStr == ".1.3.6.1.6.3.15.1.1.2.0":
                 # we may get a subsequent snmp result with the correct value
@@ -264,16 +285,22 @@ class AgentProxy(object):
                 self.defers[pdu.reqid] = (d, oids_requested)
                 return
         if pdu.errstat != netsnmp.SNMP_ERR_NOERROR:
-            pduError = PDU_ERRORS.get(pdu.errstat, 'Unknown error (%d)' % pdu.errstat)
+            pduError = PDU_ERRORS.get(
+                pdu.errstat, "Unknown error (%d)" % pdu.errstat
+            )
             message = "Packet for %s has error: %s" % (self.ip, pduError)
-            if pdu.errstat in (SNMP_ERR_NOACCESS, 
-                               SNMP_ERR_RESOURCEUNAVAILABLE, 
-                               SNMP_ERR_AUTHORIZATIONERROR,):
-                reactor.callLater(0, d.errback, failure.Failure(SnmpError(message)))
+            if pdu.errstat in (
+                SNMP_ERR_NOACCESS,
+                SNMP_ERR_RESOURCEUNAVAILABLE,
+                SNMP_ERR_AUTHORIZATIONERROR,
+            ):
+                reactor.callLater(
+                    0, d.errback, failure.Failure(SnmpError(message))
+                )
                 return
             else:
                 result = []
-                self._log.warning(message + '. OIDS: %s', oids_requested)
+                self._log.warning(message + ". OIDS: %s", oids_requested)
 
         reactor.callLater(0, d.callback, result)
 
@@ -285,27 +312,34 @@ class AgentProxy(object):
         if not self.cmdLineArgs:
             return ()
 
-        version = str(self.snmpVersion).lstrip('v')
-        if version == '2':
-            version += 'c'
+        version = str(self.snmpVersion).lstrip("v")
+        if version == "2":
+            version += "c"
 
-        if '%' in self.ip:
-            address, interface = self.ip.split('%')
+        if "%" in self.ip:
+            address, interface = self.ip.split("%")
         else:
             address = self.ip
             interface = None
 
-        self._log.debug("AgentProxy._getCmdLineArgs: using google ipaddr on %s", address)
+        self._log.debug(
+            "AgentProxy._getCmdLineArgs: using google ipaddr on %s", address
+        )
 
         ipobj = IPAddress(address)
         agent = _get_agent_spec(ipobj, interface, self.port)
 
-        cmdLineArgs = list(self.cmdLineArgs) + ['-v', str(version),
-                                                '-c', self.community,
-                                                '-t', str(self.timeout),
-                                                '-r', str(self.tries),
-                                                agent,
-                                               ]
+        cmdLineArgs = list(self.cmdLineArgs) + [
+            "-v",
+            str(version),
+            "-c",
+            self.community,
+            "-t",
+            str(self.timeout),
+            "-r",
+            str(self.tries),
+            agent,
+        ]
         return cmdLineArgs
 
     def open(self):
@@ -315,14 +349,15 @@ class AgentProxy(object):
 
         self.session = netsnmp.Session(
             version=netsnmp.SNMP_VERSION_MAP.get(
-                self.snmpVersion, 
-                netsnmp.SNMP_VERSION_2c),
+                self.snmpVersion, netsnmp.SNMP_VERSION_2c
+            ),
             timeout=int(self.timeout),
             retries=int(self.tries),
-            peername= '%s:%d' % (self.ip, self.port),
+            peername="%s:%d" % (self.ip, self.port),
             community=self.community,
             community_len=len(self.community),
-            cmdLineArgs=self._getCmdLineArgs())
+            cmdLineArgs=self._getCmdLineArgs(),
+        )
 
         self.session.callback = self.callback
         self.session.timeout = self.timeout_
@@ -339,7 +374,7 @@ class AgentProxy(object):
         d = defer.Deferred()
         try:
             self.defers[self.session.get(oids)] = (d, oids)
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return d
@@ -350,7 +385,7 @@ class AgentProxy(object):
             self.defers[self.session.walk(oid)] = (d, (oid,))
         except netsnmp.SnmpTimeoutError:
             return defer.fail(TimeoutError())
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return d
@@ -358,24 +393,24 @@ class AgentProxy(object):
     def _getbulk(self, nonrepeaters, maxrepititions, oids):
         d = defer.Deferred()
         try:
-            self.defers[self.session.getbulk(nonrepeaters,
-                                             maxrepititions,
-                                             oids)] = (d, oids)
-        except Exception, ex:
+            self.defers[
+                self.session.getbulk(nonrepeaters, maxrepititions, oids)
+            ] = (d, oids)
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return d
 
-
     def getTable(self, oids, **kw):
         from tableretriever import TableRetriever
+
         try:
             t = TableRetriever(self, oids, **kw)
-        except Exception, ex:
+        except Exception as ex:
             return defer.fail(ex)
         updateReactor()
         return t()
-        
+
     def get(self, oidStrs, timeout=None, retryCount=None):
         oids = [asOid(oidStr) for oidStr in oidStrs]
         deferred = self._get(oids, timeout, retryCount)
@@ -404,6 +439,9 @@ class AgentProxy(object):
 
 class _FakeProtocol:
     protocol = None
-    def port(self): return self
-snmpprotocol = _FakeProtocol()
 
+    def port(self):
+        return self
+
+
+snmpprotocol = _FakeProtocol()

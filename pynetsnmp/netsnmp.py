@@ -13,39 +13,47 @@ def _getLogger(name):
     return logging.getLogger("zen.pynetsnmp.%s" % name)
 
 
-if sys.platform.find('free') > -1:
+if sys.platform.find("free") > -1:
     find_library_orig = find_library
+
     def find_library(name):
-        for name in ['/usr/lib/lib%s.so' % name,
-                     '/usr/local/lib/lib%s.so' % name]:
+        for name in [
+            "/usr/lib/lib%s.so" % name,
+            "/usr/local/lib/lib%s.so" % name,
+        ]:
             if os.path.exists(name):
                 return name
         return find_library_orig(name)
 
+
 find_library_orig = find_library
+
+
 def find_library(name):
     if sys.platform == "darwin":
-        libPath = os.environ.get('DYLD_LIBRARY_PATH', '')
+        libPath = os.environ.get("DYLD_LIBRARY_PATH", "")
     else:
-        libPath = os.environ.get('LD_LIBRARY_PATH', '')
-    libPathList = libPath.split(':')
+        libPath = os.environ.get("LD_LIBRARY_PATH", "")
+    libPathList = libPath.split(":")
     for path in libPathList:
-        pathName = path+'/lib%s.so' % name
+        pathName = path + "/lib%s.so" % name
         if os.path.exists(pathName):
             return pathName
     return find_library_orig(name)
+
 
 c_int_p = c_void_p
 authenticator = CFUNCTYPE(c_char_p, c_int_p, c_char_p, c_int)
 
 try:
     # needed by newer netsnmp's
-    crypto = CDLL(find_library('crypto'), RTLD_GLOBAL)
+    crypto = CDLL(find_library("crypto"), RTLD_GLOBAL)
 except Exception:
     import warnings
+
     warnings.warn("Unable to load crypto library")
 
-lib = CDLL(find_library('netsnmp'), RTLD_GLOBAL)
+lib = CDLL(find_library("netsnmp"), RTLD_GLOBAL)
 lib.netsnmp_get_version.restype = c_char_p
 
 oid = c_long
@@ -56,200 +64,224 @@ u_int = c_uint
 size_t = c_size_t
 u_char = c_byte
 
-class netsnmp_session(Structure): pass
-class netsnmp_pdu(Structure): pass
-class netsnmp_transport(Structure): pass
+
+class netsnmp_session(Structure):
+    pass
+
+
+class netsnmp_pdu(Structure):
+    pass
+
+
+class netsnmp_transport(Structure):
+    pass
+
+
 # int (*netsnmp_callback) (int, netsnmp_session *, int, netsnmp_pdu *, void *);
-netsnmp_callback = CFUNCTYPE(c_int,
-                             c_int, POINTER(netsnmp_session),
-                             c_int, POINTER(netsnmp_pdu),
-                             c_void_p)
+netsnmp_callback = CFUNCTYPE(
+    c_int,
+    c_int,
+    POINTER(netsnmp_session),
+    c_int,
+    POINTER(netsnmp_pdu),
+    c_void_p,
+)
 
 # int (*proc)(int, char * const *, int)
-arg_parse_proc = CFUNCTYPE(c_int, POINTER(c_char_p), c_int);
+arg_parse_proc = CFUNCTYPE(c_int, POINTER(c_char_p), c_int)
 
 version = lib.netsnmp_get_version()
-float_version = float('.'.join(version.split('.')[:2]))
-_netsnmp_str_version = tuple(str(v) for v in version.split('.'))
+float_version = float(".".join(version.split(".")[:2]))
+_netsnmp_str_version = tuple(str(v) for v in version.split("."))
 localname = []
 paramName = []
 transportConfig = []
 if float_version < 5.099:
     raise ImportError("netsnmp version 5.1 or greater is required")
 if float_version > 5.199:
-    localname = [('localname', c_char_p)]
+    localname = [("localname", c_char_p)]
     if float_version > 5.299:
-        paramName = [('paramName', c_char_p)]
-if _netsnmp_str_version >= ('5','6'):
+        paramName = [("paramName", c_char_p)]
+if _netsnmp_str_version >= ("5", "6"):
     # Versions >= 5.6 and < 5.6.1.1 broke binary compatibility and changed oid type from c_long to c_uint32. This works
     # around the issue for these platforms to allow things to work properly.
-    if _netsnmp_str_version <= ('5','6','1','1'):
+    if _netsnmp_str_version <= ("5", "6", "1", "1"):
         oid = c_uint32
 
     # Versions >= 5.6 broke binary compatibility by adding transport specific configuration
-    class netsnmp_container_s(Structure): pass
-    transportConfig = [('transport_configuration', POINTER(netsnmp_container_s))]
+    class netsnmp_container_s(Structure):
+        pass
+
+    transportConfig = [
+        ("transport_configuration", POINTER(netsnmp_container_s))
+    ]
 
 
 SNMP_VERSION_MAP = {
-    'v1': SNMP_VERSION_1,
-    'v2c': SNMP_VERSION_2c,
-    'v2u': SNMP_VERSION_2u,
-    'v3': SNMP_VERSION_3,
-    'sec': SNMP_VERSION_sec,
-    '2p': SNMP_VERSION_2p,
-    '2star': SNMP_VERSION_2star,
+    "v1": SNMP_VERSION_1,
+    "v2c": SNMP_VERSION_2c,
+    "v2u": SNMP_VERSION_2u,
+    "v3": SNMP_VERSION_3,
+    "sec": SNMP_VERSION_sec,
+    "2p": SNMP_VERSION_2p,
+    "2star": SNMP_VERSION_2star,
 }
 
 
 # Version
-netsnmp_session._fields_ = [
-        ('version', c_long),
-        ('retries', c_int),
-        ('timeout', c_long),
-        ('flags', u_long),
-        ('subsession', POINTER(netsnmp_session)),
-        ('next', POINTER(netsnmp_session)),
-        ('peername', c_char_p),
-        ('remote_port', u_short), ] + localname + [
-        ('local_port', u_short),
-        ('authenticator', authenticator),
-        ('callback', netsnmp_callback),
-        ('callback_magic', c_void_p),
-        ('s_errno', c_int),
-        ('s_snmp_errno', c_int),
-        ('sessid', c_long),
-        ('community', u_char_p),
-        ('community_len', size_t),
-        ('rcvMsgMaxSize', size_t),
-        ('sndMsgMaxSize', size_t),
-
-        ('isAuthoritative', u_char),
-        ('contextEngineID', u_char_p),
-        ('contextEngineIDLen', size_t),
-        ('engineBoots', u_int),
-        ('engineTime', u_int),
-        ('contextName', c_char_p),
-        ('contextNameLen', size_t),
-        ('securityEngineID', u_char_p),
-        ('securityEngineIDLen', size_t),
-        ('securityName', c_char_p),
-        ('securityNameLen', size_t),
-
-        ('securityAuthProto', POINTER(oid)),
-        ('securityAuthProtoLen', size_t),
-        ('securityAuthKey', u_char * USM_AUTH_KU_LEN),
-        ('securityAuthKeyLen', c_size_t),
-        ('securityAuthLocalKey', c_char_p),
-        ('securityAuthLocalKeyLen', c_size_t),
-
-        ('securityPrivProto', POINTER(oid)),
-        ('securityPrivProtoLen', c_size_t),
-        ('securityPrivKey', c_char * USM_PRIV_KU_LEN),
-        ('securityPrivKeyLen', c_size_t),
-        ('securityPrivLocalKey', c_char_p),
-        ('securityPrivLocalKeyLen', c_size_t),
-
-        ('securityModel', c_int),
-        ('securityLevel', c_int),
-
-        ] + paramName + [
-
-        ('securityInfo', c_void_p),
-
-        ] + transportConfig + [
-
-        ('myvoid', c_void_p),
-        ]
-
+netsnmp_session._fields_ = (
+    [
+        ("version", c_long),
+        ("retries", c_int),
+        ("timeout", c_long),
+        ("flags", u_long),
+        ("subsession", POINTER(netsnmp_session)),
+        ("next", POINTER(netsnmp_session)),
+        ("peername", c_char_p),
+        ("remote_port", u_short),
+    ]
+    + localname
+    + [
+        ("local_port", u_short),
+        ("authenticator", authenticator),
+        ("callback", netsnmp_callback),
+        ("callback_magic", c_void_p),
+        ("s_errno", c_int),
+        ("s_snmp_errno", c_int),
+        ("sessid", c_long),
+        ("community", u_char_p),
+        ("community_len", size_t),
+        ("rcvMsgMaxSize", size_t),
+        ("sndMsgMaxSize", size_t),
+        ("isAuthoritative", u_char),
+        ("contextEngineID", u_char_p),
+        ("contextEngineIDLen", size_t),
+        ("engineBoots", u_int),
+        ("engineTime", u_int),
+        ("contextName", c_char_p),
+        ("contextNameLen", size_t),
+        ("securityEngineID", u_char_p),
+        ("securityEngineIDLen", size_t),
+        ("securityName", c_char_p),
+        ("securityNameLen", size_t),
+        ("securityAuthProto", POINTER(oid)),
+        ("securityAuthProtoLen", size_t),
+        ("securityAuthKey", u_char * USM_AUTH_KU_LEN),
+        ("securityAuthKeyLen", c_size_t),
+        ("securityAuthLocalKey", c_char_p),
+        ("securityAuthLocalKeyLen", c_size_t),
+        ("securityPrivProto", POINTER(oid)),
+        ("securityPrivProtoLen", c_size_t),
+        ("securityPrivKey", c_char * USM_PRIV_KU_LEN),
+        ("securityPrivKeyLen", c_size_t),
+        ("securityPrivLocalKey", c_char_p),
+        ("securityPrivLocalKeyLen", c_size_t),
+        ("securityModel", c_int),
+        ("securityLevel", c_int),
+    ]
+    + paramName
+    + [
+        ("securityInfo", c_void_p),
+    ]
+    + transportConfig
+    + [
+        ("myvoid", c_void_p),
+    ]
+)
 
 
 dataFreeHook = CFUNCTYPE(c_void_p)
 
+
 class counter64(Structure):
     _fields_ = [
-        ('high', c_ulong),
-        ('low', c_ulong),
-        ]
+        ("high", c_ulong),
+        ("low", c_ulong),
+    ]
+
 
 class netsnmp_vardata(Union):
     _fields_ = [
-        ('integer', POINTER(c_long)),
-        ('uinteger', POINTER(c_ulong)),
-        ('string', c_char_p),
-        ('objid', POINTER(oid)),
-        ('bitstring', POINTER(c_ubyte)),
-        ('counter64', POINTER(counter64)),
-        ('floatVal', POINTER(c_float)),
-        ('doubleVal', POINTER(c_double)),
-        ]
+        ("integer", POINTER(c_long)),
+        ("uinteger", POINTER(c_ulong)),
+        ("string", c_char_p),
+        ("objid", POINTER(oid)),
+        ("bitstring", POINTER(c_ubyte)),
+        ("counter64", POINTER(counter64)),
+        ("floatVal", POINTER(c_float)),
+        ("doubleVal", POINTER(c_double)),
+    ]
+
 
 class netsnmp_variable_list(Structure):
     pass
+
+
 netsnmp_variable_list._fields_ = [
-        ('next_variable', POINTER(netsnmp_variable_list)),
-        ('name', POINTER(oid)),
-        ('name_length', c_size_t),
-        ('type', c_char),
-        ('val', netsnmp_vardata),
-        ('val_len', c_size_t),
-        ('name_loc', oid * MAX_OID_LEN),
-        ('buf', c_char * 40),
-        ('data', c_void_p),
-        ('dataFreeHook', dataFreeHook),
-        ('index', c_int),
-        ]
+    ("next_variable", POINTER(netsnmp_variable_list)),
+    ("name", POINTER(oid)),
+    ("name_length", c_size_t),
+    ("type", c_char),
+    ("val", netsnmp_vardata),
+    ("val_len", c_size_t),
+    ("name_loc", oid * MAX_OID_LEN),
+    ("buf", c_char * 40),
+    ("data", c_void_p),
+    ("dataFreeHook", dataFreeHook),
+    ("index", c_int),
+]
 
 netsnmp_pdu._fields_ = [
-        ('version', c_long ),
-        ('command', c_int ),
-        ('reqid', c_long ),
-        ('msgid', c_long ),
-        ('transid', c_long ),
-        ('sessid', c_long ),
-        ('errstat', c_long ),
-        ('errindex', c_long ),
-        ('time', c_ulong ),
-        ('flags', c_ulong ),
-        ('securityModel', c_int ),
-        ('securityLevel', c_int ),
-        ('msgParseModel', c_int ),
-        ('transport_data', c_void_p),
-        ('transport_data_length', c_int ),
-        ('tDomain', POINTER(oid)),
-        ('tDomainLen', c_size_t ),
-        ('variables', POINTER(netsnmp_variable_list)),
-        ('community', c_char_p),
-        ('community_len', c_size_t ),
-        ('enterprise', POINTER(oid)),
-        ('enterprise_length', c_size_t ),
-        ('trap_type', c_long ),
-        ('specific_type', c_long ),
-        ('agent_addr', c_ubyte * 4),
-        ('contextEngineID', c_char_p ),
-        ('contextEngineIDLen', c_size_t ),
-        ('contextName', c_char_p),
-        ('contextNameLen', c_size_t ),
-        ('securityEngineID', c_char_p),
-        ('securityEngineIDLen', c_size_t ),
-        ('securityName', c_char_p),
-        ('securityNameLen', c_size_t ),
-        ('priority', c_int ),
-        ('range_subid', c_int ),
-        ('securityStateRef', c_void_p),
-        ]
+    ("version", c_long),
+    ("command", c_int),
+    ("reqid", c_long),
+    ("msgid", c_long),
+    ("transid", c_long),
+    ("sessid", c_long),
+    ("errstat", c_long),
+    ("errindex", c_long),
+    ("time", c_ulong),
+    ("flags", c_ulong),
+    ("securityModel", c_int),
+    ("securityLevel", c_int),
+    ("msgParseModel", c_int),
+    ("transport_data", c_void_p),
+    ("transport_data_length", c_int),
+    ("tDomain", POINTER(oid)),
+    ("tDomainLen", c_size_t),
+    ("variables", POINTER(netsnmp_variable_list)),
+    ("community", c_char_p),
+    ("community_len", c_size_t),
+    ("enterprise", POINTER(oid)),
+    ("enterprise_length", c_size_t),
+    ("trap_type", c_long),
+    ("specific_type", c_long),
+    ("agent_addr", c_ubyte * 4),
+    ("contextEngineID", c_char_p),
+    ("contextEngineIDLen", c_size_t),
+    ("contextName", c_char_p),
+    ("contextNameLen", c_size_t),
+    ("securityEngineID", c_char_p),
+    ("securityEngineIDLen", c_size_t),
+    ("securityName", c_char_p),
+    ("securityNameLen", c_size_t),
+    ("priority", c_int),
+    ("range_subid", c_int),
+    ("securityStateRef", c_void_p),
+]
 
 netsnmp_pdu_p = POINTER(netsnmp_pdu)
 
 # Redirect netsnmp logging to our log
-class netsnmp_log_message(Structure): pass
+class netsnmp_log_message(Structure):
+    pass
+
+
 netsnmp_log_message_p = POINTER(netsnmp_log_message)
-log_callback = CFUNCTYPE(c_int, c_int,
-                         netsnmp_log_message_p,
-                         c_void_p);
+log_callback = CFUNCTYPE(c_int, c_int, netsnmp_log_message_p, c_void_p)
 netsnmp_log_message._fields_ = [
-    ('priority', c_int),
-    ('msg', c_char_p),
+    ("priority", c_int),
+    ("msg", c_char_p),
 ]
 PRIORITY_MAP = {
     LOG_EMERG: logging.CRITICAL,
@@ -261,44 +293,52 @@ PRIORITY_MAP = {
     LOG_INFO: logging.INFO,
     LOG_DEBUG: logging.DEBUG,
 }
+
+
 def netsnmp_logger(a, b, msg):
     msg = cast(msg, netsnmp_log_message_p)
     priority = PRIORITY_MAP.get(msg.contents.priority, logging.DEBUG)
     _getLogger("netsnmp").log(priority, str(msg.contents.msg).strip())
     return 0
+
+
 netsnmp_logger = log_callback(netsnmp_logger)
-lib.snmp_register_callback(SNMP_CALLBACK_LIBRARY,
-                           SNMP_CALLBACK_LOGGING,
-                           netsnmp_logger,
-                           0)
+lib.snmp_register_callback(
+    SNMP_CALLBACK_LIBRARY, SNMP_CALLBACK_LOGGING, netsnmp_logger, 0
+)
 lib.netsnmp_register_loghandler(NETSNMP_LOGHANDLER_CALLBACK, LOG_DEBUG)
 lib.snmp_pdu_create.restype = netsnmp_pdu_p
 lib.snmp_open.restype = POINTER(netsnmp_session)
 
 
 netsnmp_transport._fields_ = [
-    ('domain', POINTER(oid)),
-    ('domain_length', c_int),
-    ('local', u_char_p),
-    ('local_length', c_int),
-    ('remote', u_char_p),
-    ('remote_length', c_int),
-    ('sock', c_int),
-    ('flags', u_int),
-    ('data', c_void_p),
-    ('data_length', c_int),
-    ('msgMaxSize', c_size_t),
-    ('f_recv', c_void_p),
-    ('f_send', c_void_p),
-    ('f_close', c_void_p),
-    ('f_accept',  c_void_p),
-    ('f_fmtaddr', c_void_p),
+    ("domain", POINTER(oid)),
+    ("domain_length", c_int),
+    ("local", u_char_p),
+    ("local_length", c_int),
+    ("remote", u_char_p),
+    ("remote_length", c_int),
+    ("sock", c_int),
+    ("flags", u_int),
+    ("data", c_void_p),
+    ("data_length", c_int),
+    ("msgMaxSize", c_size_t),
+    ("f_recv", c_void_p),
+    ("f_send", c_void_p),
+    ("f_close", c_void_p),
+    ("f_accept", c_void_p),
+    ("f_fmtaddr", c_void_p),
 ]
 lib.netsnmp_tdomain_transport.restype = POINTER(netsnmp_transport)
 
 lib.snmp_add.restype = POINTER(netsnmp_session)
 lib.snmp_add_var.argtypes = [
-    netsnmp_pdu_p, POINTER(oid), c_size_t, c_char, c_char_p]
+    netsnmp_pdu_p,
+    POINTER(oid),
+    c_size_t,
+    c_char,
+    c_char_p,
+]
 
 lib.get_uptime.restype = c_long
 
@@ -306,12 +346,9 @@ lib.snmp_send.argtypes = (POINTER(netsnmp_session), netsnmp_pdu_p)
 lib.snmp_send.restype = c_int
 
 # int snmp_input(int, netsnmp_session *, int, netsnmp_pdu *, void *);
-snmp_input_t = CFUNCTYPE(c_int,
-                         c_int,
-                         POINTER(netsnmp_session),
-                         c_int,
-                         netsnmp_pdu_p,
-                         c_void_p)
+snmp_input_t = CFUNCTYPE(
+    c_int, c_int, POINTER(netsnmp_session), c_int, netsnmp_pdu_p, c_void_p
+)
 
 
 # A pointer to a _CallbackData struct is used for the callback_magic
@@ -339,31 +376,48 @@ lib.snmp_api_errstring.restype = c_char_p
 class UnknownType(Exception):
     pass
 
+
 def mkoid(n):
     oids = (oid * len(n))()
     for i, v in enumerate(n):
         oids[i] = v
     return oids
 
+
 def strToOid(oidStr):
-    return mkoid(tuple([int(x) for x in oidStr.strip('.').split('.')]))
+    return mkoid(tuple([int(x) for x in oidStr.strip(".").split(".")]))
+
 
 def decodeOid(pdu):
-    return tuple([pdu.val.objid[i] for i in range(pdu.val_len / sizeof(u_long))])
+    return tuple(
+        [pdu.val.objid[i] for i in range(pdu.val_len / sizeof(u_long))]
+    )
+
 
 def decodeIp(pdu):
-    return '.'.join(map(str, pdu.val.bitstring[:4]))
+    return ".".join(map(str, pdu.val.bitstring[:4]))
+
 
 def decodeBigInt(pdu):
     int64 = pdu.val.counter64.contents
-    return (int64.high << 32L) + int64.low
+    return (int64.high << 32) + int64.low
+
 
 def decodeString(pdu):
     if pdu.val_len:
         return string_at(pdu.val.bitstring, pdu.val_len)
-    return ''
+    return ""
 
-_valueToConstant = dict([(chr(getattr(CONSTANTS, k)), k) for k in CONSTANTS.__dict__.keys() if isinstance(getattr(CONSTANTS,k), int) and getattr(CONSTANTS,k)>=0 and getattr(CONSTANTS,k) < 256])
+
+_valueToConstant = dict(
+    [
+        (chr(getattr(CONSTANTS, k)), k)
+        for k in CONSTANTS.__dict__.keys()
+        if isinstance(getattr(CONSTANTS, k), int)
+        and getattr(CONSTANTS, k) >= 0
+        and getattr(CONSTANTS, k) < 256
+    ]
+)
 
 
 decoder = {
@@ -380,7 +434,8 @@ decoder = {
     chr(ASN_COUNTER64): decodeBigInt,
     chr(ASN_APP_FLOAT): lambda pdu: pdu.val.float.contents.value,
     chr(ASN_APP_DOUBLE): lambda pdu: pdu.val.double.contents.value,
-    }
+}
+
 
 def decodeType(var, log):
     oid = [var.name[i] for i in range(var.name_length)]
@@ -388,8 +443,11 @@ def decodeType(var, log):
     if not decode:
         # raise UnknownType(oid, ord(var.type))
         log_oid = ".".join(map(str, oid))
-        log.debug("No decoder for oid %s type %s - returning None", log_oid,
-                 _valueToConstant.get(var.type, var.type))
+        log.debug(
+            "No decoder for oid %s type %s - returning None",
+            log_oid,
+            _valueToConstant.get(var.type, var.type),
+        )
         return (oid, None)
     return oid, decode(var)
 
@@ -400,20 +458,24 @@ def getResult(pdu, log):
     while var:
         var = var.contents
         oid, val = decodeType(var, log)
-        result.append( (tuple(oid), val) )
+        result.append((tuple(oid), val))
         var = var.next_variable
     return result
 
-class SnmpError(Exception):
 
+class SnmpError(Exception):
     def __init__(self, why):
         lib.snmp_perror(why)
         Exception.__init__(self, why)
 
+
 class SnmpTimeoutError(Exception):
     pass
 
+
 sessionMap = {}
+
+
 def _callback(operation, sp, reqid, pdu, magic):
     data_ptr = cast(magic, _CallbackDataPtr)
     sess = sessionMap[data_ptr.contents.session_id]
@@ -424,35 +486,47 @@ def _callback(operation, sp, reqid, pdu, magic):
             sess.timeout(reqid)
         else:
             _getLogger("callback").error("Unknown operation: %d", operation)
-    except Exception, ex:
+    except Exception as ex:
         _getLogger("callback").exception("Exception in _callback %s", ex)
     return 1
+
+
 _callback = netsnmp_callback(_callback)
+
 
 class ArgumentParseError(Exception):
     pass
 
+
 class TransportError(Exception):
     pass
 
+
 def _doNothingProc(argc, argv, arg):
     return 0
+
+
 _doNothingProc = arg_parse_proc(_doNothingProc)
 
+
 def parse_args(args, session):
-    args = [sys.argv[0],] + args
+    args = [
+        sys.argv[0],
+    ] + args
     argc = len(args)
     argv = (c_char_p * argc)()
     for i in range(argc):
         # snmp_parse_args mutates argv, so create a copy
         argv[i] = create_string_buffer(args[i]).raw
     # WARNING: Usage of snmp_parse_args call causes memory leak.
-    if lib.snmp_parse_args(argc, argv, session, '', _doNothingProc) < 0:
-        raise ArgumentParseError("Unable to parse arguments", ' '.join(argv))
+    if lib.snmp_parse_args(argc, argv, session, "", _doNothingProc) < 0:
+        raise ArgumentParseError("Unable to parse arguments", " ".join(argv))
     # keep a reference to the args for as long as sess is alive
     return argv
 
+
 _NoAttribute = object()
+
 
 def initialize_session(sess, cmdLineArgs, kw):
     args = None
@@ -465,9 +539,9 @@ def initialize_session(sess, cmdLineArgs, kw):
                 result.append(opt)
                 result.append(val)
             cmdLine = result
-        if kw.get('peername'):
-            cmdLine.append(kw['peername'])
-            del kw['peername']
+        if kw.get("peername"):
+            cmdLine.append(kw["peername"])
+            del kw["peername"]
         args = parse_args(cmdLine, byref(sess))
     else:
         lib.snmp_sess_init(byref(sess))
@@ -496,11 +570,12 @@ def initialize_session(sess, cmdLineArgs, kw):
             setattr(sess, attr, value)
     return args
 
+
 class Session(object):
 
     cb = None
 
-    def __init__(self, cmdLineArgs = (), **kw):
+    def __init__(self, cmdLineArgs=(), **kw):
         self.cmdLineArgs = cmdLineArgs
         self.kw = kw
         self.sess = None
@@ -519,14 +594,18 @@ class Session(object):
         ref = byref(sess)
         self.sess = lib.snmp_open(ref)
         if not self.sess:
-            raise SnmpError('snmp_open')
+            raise SnmpError("snmp_open")
 
-    def awaitTraps(self, peername, fileno = -1, pre_parse_callback=None, debug=False):
+    def awaitTraps(
+        self, peername, fileno=-1, pre_parse_callback=None, debug=False
+    ):
         if float_version > 5.299:
-            lib.netsnmp_ds_set_string(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_APPTYPE, "pynetsnmp")
+            lib.netsnmp_ds_set_string(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_APPTYPE, "pynetsnmp"
+            )
         lib.init_usm()
         if debug:
-            lib.debug_register_tokens("snmp_parse") # or "ALL" for everything
+            lib.debug_register_tokens("snmp_parse")  # or "ALL" for everything
             lib.snmp_set_do_debugging(1)
         lib.netsnmp_udp_ctor()
         marker = object()
@@ -535,12 +614,18 @@ class Session(object):
         elif getattr(lib, "netsnmp_udp6_ctor", marker) is not marker:
             lib.netsnmp_udp6_ctor()
         else:
-            self._log.debug("Cannot find constructor function for UDP/IPv6 transport domain object.")
+            self._log.debug(
+                "Cannot find constructor function for UDP/IPv6 transport domain object."
+            )
         lib.init_snmp("zenoss_app")
         lib.setup_engineID(None, None)
         transport = lib.netsnmp_tdomain_transport(peername, 1, "udp")
         if not transport:
-            raise SnmpError("Unable to create transport {peername}".format(peername=peername))
+            raise SnmpError(
+                "Unable to create transport {peername}".format(
+                    peername=peername
+                )
+            )
         if fileno >= 0:
             os.dup2(fileno, transport.contents.sock)
         sess = netsnmp_session()
@@ -563,7 +648,7 @@ class Session(object):
         sess.isAuthoritative = SNMP_SESS_UNKNOWNAUTH
         rc = lib.snmp_add(self.sess, transport, pre_parse_callback, None)
         if not rc:
-            raise SnmpError('snmp_add')
+            raise SnmpError("snmp_add")
 
     def create_users(self, users):
         self._log.debug("create_users: Creating %s users.", len(users))
@@ -573,24 +658,35 @@ class Session(object):
                     line = ""
                     if user.engine_id:
                         line = "-e {} ".format(user.engine_id)
-                    line += " ".join([user.username,
-                                      user.authentication_type, # MD5 or SHA
-                                      user.authentication_passphrase,
-                                      user.privacy_protocol, # DES or AES
-                                      user.privacy_passphrase])
+                    line += " ".join(
+                        [
+                            user.username,
+                            user.authentication_type,  # MD5 or SHA
+                            user.authentication_passphrase,
+                            user.privacy_protocol,  # DES or AES
+                            user.privacy_passphrase,
+                        ]
+                    )
                     lib.usm_parse_create_usmUser("createUser", line)
                     self._log.debug("create_users: created user: %s", user)
-                except StandardError, e:
-                    self._log.debug("create_users: could not create user: %s: (%s: %s)", user, e.__class__.__name__, e)
+                except StandardError as e:
+                    self._log.debug(
+                        "create_users: could not create user: %s: (%s: %s)",
+                        user,
+                        e.__class__.__name__,
+                        e,
+                    )
 
     def sendTrap(self, trapoid, varbinds=None):
-        if '-v1' in self.cmdLineArgs:
+        if "-v1" in self.cmdLineArgs:
             pdu = lib.snmp_pdu_create(SNMP_MSG_TRAP)
-            if hasattr(self, 'agent_addr'):
+            if hasattr(self, "agent_addr"):
                 # pdu.contents is a netsnmp_pdu, defined above, therefore its fields are c types
                 # self.agent_addr is an ipv4 address, and the v1 trap wants a c array of 4 unsigned bytes,
                 # so chop it up, make the octets ints, then a bytearray from that will cast.
-                pdu.contents.agent_addr = (c_ubyte*4)(*(bytearray([int(x) for x in self.agent_addr.split('.')])))
+                pdu.contents.agent_addr = (c_ubyte * 4)(
+                    *(bytearray([int(x) for x in self.agent_addr.split(".")]))
+                )
             pdu.contents.trap_type = 6
             pdu.contents.specific_type = 0
             pdu.contents.time = lib.get_uptime()
@@ -599,15 +695,17 @@ class Session(object):
             pdu = lib.snmp_pdu_create(SNMP_MSG_TRAP2)
 
             # sysUpTime is mandatory on V2Traps.
-            objid_sysuptime = mkoid((1,3,6,1,2,1,1,3,0))
+            objid_sysuptime = mkoid((1, 3, 6, 1, 2, 1, 1, 3, 0))
             uptime = "%ld" % lib.get_uptime()
             lib.snmp_add_var(
-                pdu, objid_sysuptime, len(objid_sysuptime), 't', uptime)
+                pdu, objid_sysuptime, len(objid_sysuptime), "t", uptime
+            )
 
         # snmpTrapOID is mandatory on V2Traps.
-        objid_snmptrap = mkoid((1,3,6,1,6,3,1,1,4,1,0))
+        objid_snmptrap = mkoid((1, 3, 6, 1, 6, 3, 1, 1, 4, 1, 0))
         lib.snmp_add_var(
-            pdu, objid_snmptrap, len(objid_snmptrap), 'o', trapoid)
+            pdu, objid_snmptrap, len(objid_snmptrap), "o", trapoid
+        )
 
         if varbinds:
             for n, t, v in varbinds:
@@ -624,7 +722,9 @@ class Session(object):
             self._data = None
         if id(self) not in sessionMap:
             self._log.warn(
-                "Session ID not found session_id=%s %r", id(self), self.kw,
+                "Session ID not found session_id=%s %r",
+                id(self),
+                self.kw,
             )
             return
         del sessionMap[id(self)]
@@ -650,15 +750,21 @@ class Session(object):
             lib.snmp_free_pdu(response)
             return result
 
-
     def _handle_send_status(self, req, send_status, send_type):
         if send_status == 0:
             cliberr = c_int()
             snmperr = c_int()
             errstring = c_char_p()
-            lib.snmp_error(self.sess, byref(cliberr), byref(snmperr), byref(errstring));
+            lib.snmp_error(
+                self.sess, byref(cliberr), byref(snmperr), byref(errstring)
+            )
             msg_fmt = "%s: snmp_send cliberr=%s, snmperr=%s, errstring=%s"
-            msg_args = (send_type, cliberr.value, snmperr.value, errstring.value)
+            msg_args = (
+                send_type,
+                cliberr.value,
+                snmperr.value,
+                errstring.value,
+            )
             self._log.debug(msg_fmt, *msg_args)
             lib.snmp_free_pdu(req)
             if snmperr.value == SNMPERR_TIMEOUT:
@@ -671,7 +777,7 @@ class Session(object):
             oid = mkoid(oid)
             lib.snmp_add_null_var(req, oid, len(oid))
         send_status = lib.snmp_send(self.sess, req)
-        self._handle_send_status(req, send_status, 'get')
+        self._handle_send_status(req, send_status, "get")
         return req.contents.reqid
 
     def getbulk(self, nonrepeaters, maxrepetitions, oids):
@@ -683,7 +789,7 @@ class Session(object):
             oid = mkoid(oid)
             lib.snmp_add_null_var(req, oid, len(oid))
         send_status = lib.snmp_send(self.sess, req)
-        self._handle_send_status(req, send_status, 'get')
+        self._handle_send_status(req, send_status, "get")
         return req.contents.reqid
 
     def walk(self, root):
@@ -692,18 +798,20 @@ class Session(object):
         lib.snmp_add_null_var(req, oid, len(oid))
         send_status = lib.snmp_send(self.sess, req)
         self._log.debug("walk: send_status=%s", send_status)
-        self._handle_send_status(req, send_status, 'walk')
+        self._handle_send_status(req, send_status, "walk")
         return req.contents.reqid
 
 
 MAXFD = 1024
-fdset = c_int32 * (MAXFD/32)
+fdset = c_int32 * (MAXFD / 32)
+
 
 class timeval(Structure):
     _fields_ = [
-        ('tv_sec', c_long),
-        ('tv_usec', c_long),
-        ]
+        ("tv_sec", c_long),
+        ("tv_usec", c_long),
+    ]
+
 
 def fdset2list(rd, n):
     result = []
@@ -715,6 +823,7 @@ def fdset2list(rd, n):
                     result.append(i * 32 + j)
     return result
 
+
 def snmp_select_info():
     rd = fdset()
     maxfd = c_int(0)
@@ -723,24 +832,26 @@ def snmp_select_info():
     timeout.tv_usec = 0
     block = c_int(0)
     maxfd = c_int(MAXFD)
-    lib.snmp_select_info(byref(maxfd),
-                             byref(rd),
-                             byref(timeout),
-                             byref(block))
+    lib.snmp_select_info(byref(maxfd), byref(rd), byref(timeout), byref(block))
     t = None
     if not block:
         t = timeout.tv_sec + timeout.tv_usec / 1e6
     return fdset2list(rd, maxfd.value), t
+
 
 def snmp_read(fd):
     rd = fdset()
     rd[fd / 32] |= 1 << (fd % 32)
     lib.snmp_read(byref(rd))
 
+
 done = False
+
+
 def loop():
     while not done:
         from select import select
+
         rd, t = snmp_select_info()
         if t is None:
             break
@@ -751,7 +862,7 @@ def loop():
         else:
             lib.snmp_timeout()
 
+
 def stop():
     global done
     done = 1
-
