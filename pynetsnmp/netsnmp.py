@@ -157,6 +157,22 @@ class netsnmp_transport(Structure):
     pass
 
 
+# +++ types.h
+class netsnmp_trap_stats(Structure):
+    _fields_ = [
+        ("sent_count", c_ulong),
+        ("sent_last_sent", c_ulong),
+        ("sent_fail_count", c_ulong),
+        ("sent_last_fail", c_ulong),
+        ("ack_count", c_ulong),
+        ("ack_last_rcvd", c_ulong),
+        ("sec_err_count", c_ulong),
+        ("sec_err_last", c_ulong),
+        ("timeouts", c_ulong),
+        ("sent_last_timeout", c_ulong),
+    ]
+
+
 # --- types.h int (*netsnmp_callback) (int, netsnmp_session *, int, netsnmp_pdu *, void *);
 # the first argument is self ??? Without it, callback function throws an error with not enough args, 4 from 5
 netsnmp_callback = CFUNCTYPE(
@@ -177,6 +193,8 @@ _netsnmp_str_version = tuple(str(v) for v in version.split("."))
 localname = []
 paramName = []
 transportConfig = []
+trapStats = []
+msgMaxSize = []
 if float_version < 5.099:
     raise ImportError("netsnmp version 5.1 or greater is required")
 if float_version > 5.199:
@@ -198,6 +216,14 @@ if _netsnmp_str_version >= ("5", "6"):
     transportConfig = [
         ("transport_configuration", POINTER(netsnmp_container_s))
     ]
+if _netsnmp_str_version >= ('5','8'):
+    # Version >= 5.8 broke binary compatibility, adding the trap_stats member to the netsnmp_session struct
+    trapStats = [('trap_stats', POINTER(netsnmp_trap_stats))]
+    # Version >= 5.8 broke binary compatibility, adding the msgMaxSize member to the snmp_pdu struct
+    msgMaxSize = [('msgMaxSize', c_long)]
+    # Version >= 5.8 broke binary compatibility, doubling the size of these constants used for struct sizes
+    USM_AUTH_KU_LEN = 64
+    USM_PRIV_KU_LEN = 64
 
 
 SNMP_VERSION_MAP = {
@@ -211,7 +237,7 @@ SNMP_VERSION_MAP = {
 }
 
 
-# Version +++ types.h
+# Version --- types.h
 netsnmp_session._fields_ = (
     [
         ("version", c_long),
@@ -262,7 +288,7 @@ netsnmp_session._fields_ = (
         ("securityModel", c_int),
         ("securityLevel", c_int),
     ]
-    + paramName
+    + paramName + trapStats
     + [
         ("securityInfo", c_void_p),
     ]
@@ -327,7 +353,7 @@ netsnmp_pdu._fields_ = [
     ("securityModel", c_int),
     ("securityLevel", c_int),
     ("msgParseModel", c_int),
-    ("msgMaxSize", c_long),
+    ] + msgMaxSize + [
     ("transport_data", c_void_p),
     ("transport_data_length", c_int),
     ("tDomain", POINTER(oid)),
