@@ -2,9 +2,9 @@ import logging
 import os
 import sys
 
-import CONSTANTS as C
-import netsnmp
-import twistedsnmp
+from pynetsnmp import CONSTANTS as C
+from pynetsnmp import netsnmp
+from pynetsnmp import twistedsnmp
 
 from twisted.internet import reactor
 

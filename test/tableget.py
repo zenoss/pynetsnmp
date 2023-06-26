@@ -1,5 +1,5 @@
-from tableretriever import TableRetriever
-from twistedsnmp import AgentProxy
+from pynetsnmp.tableretriever import TableRetriever
+from pynetsnmp.twistedsnmp import AgentProxy
 from twisted.internet import reactor
 
 import logging

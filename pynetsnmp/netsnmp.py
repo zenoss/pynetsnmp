@@ -409,6 +409,8 @@ PRIORITY_MAP = {
 }
 
 # snmplib/snmp_logging.c -> free(logh);
+# include/net-snmp/output_api.h -> int  snmp_log( int priority, const char *format, ...)
+# in net-snmp -> snmp_log(LOG_ERR|WARNING|INFO|DEBUG, msg)
 def netsnmp_logger(a, b, msg):
     msg = cast(msg, netsnmp_log_message_p)
     priority = PRIORITY_MAP.get(msg.contents.priority, logging.DEBUG)
@@ -558,9 +560,9 @@ decoder = {
     chr(ASN_OBJECT_ID): decodeOid,
     chr(ASN_BIT_STR): decodeString,
     chr(ASN_IPADDRESS): decodeIp,
-    chr(ASN_COUNTER): lambda pdu: pdu.val.uinteger.contents.value,
-    chr(ASN_GAUGE): lambda pdu: pdu.val.uinteger.contents.value,
-    chr(ASN_TIMETICKS): lambda pdu: pdu.val.uinteger.contents.value,
+    chr(ASN_COUNTER): lambda pdu: pdu.val.integer.contents.value,
+    chr(ASN_GAUGE): lambda pdu: pdu.val.integer.contents.value,
+    chr(ASN_TIMETICKS): lambda pdu: pdu.val.integer.contents.value,
     chr(ASN_COUNTER64): decodeBigInt,
     chr(ASN_APP_FLOAT): lambda pdu: pdu.val.float.contents.value,
     chr(ASN_APP_DOUBLE): lambda pdu: pdu.val.double.contents.value,
