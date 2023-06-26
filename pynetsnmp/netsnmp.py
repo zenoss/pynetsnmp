@@ -157,7 +157,7 @@ class netsnmp_transport(Structure):
     pass
 
 
-# +++ types.h
+# include/net-snmp/types.h
 class netsnmp_trap_stats(Structure):
     _fields_ = [
         ("sent_count", c_ulong),
@@ -173,8 +173,8 @@ class netsnmp_trap_stats(Structure):
     ]
 
 
-# --- types.h int (*netsnmp_callback) (int, netsnmp_session *, int, netsnmp_pdu *, void *);
-# the first argument is self ??? Without it, callback function throws an error with not enough args, 4 from 5
+# include/net-snmp/types.h -> int (*netsnmp_callback) (int, netsnmp_session *, int, netsnmp_pdu *, void *);
+# the first argument is self. Without it, callback function throws an error with not enough args, 4 from 5
 netsnmp_callback = CFUNCTYPE(
     c_int,
     c_int,
@@ -237,7 +237,7 @@ SNMP_VERSION_MAP = {
 }
 
 
-# Version --- types.h
+# include/net-snmp/types.h
 netsnmp_session._fields_ = (
     [
         ("version", c_long),
@@ -308,7 +308,7 @@ class counter64(Structure):
         ("low", c_ulong),
     ]
 
-# --- types.h uinteger arg not exists
+# include/net-snmp/types.h
 class netsnmp_vardata(Union):
     _fields_ = [
         ("integer", POINTER(c_long)),
@@ -324,7 +324,7 @@ class netsnmp_vardata(Union):
 class netsnmp_variable_list(Structure):
     pass
 
-# +++ types.h
+# include/net-snmp/types.h
 netsnmp_variable_list._fields_ = [
     ("next_variable", POINTER(netsnmp_variable_list)),
     ("name", POINTER(oid)),
@@ -338,7 +338,7 @@ netsnmp_variable_list._fields_ = [
     ("dataFreeHook", dataFreeHook),
     ("index", c_int),
 ]
-# --- types.h msgMaxSize arg was missed
+# include/net-snmp/types.h
 netsnmp_pdu._fields_ = [
     ("version", c_long),
     ("command", c_int),
@@ -389,10 +389,10 @@ class netsnmp_log_message(Structure):
 
 netsnmp_log_message_p = POINTER(netsnmp_log_message)
 
-# --- snmp_logging.c log_handler_callback(netsnmp_log_handler* logh, int pri, const char *str)
+# callback.h typedef int (SNMPCallback) (int majorID, int minorID, void *serverarg, void *clientarg);
 log_callback = CFUNCTYPE(c_int, c_int, netsnmp_log_message_p, c_void_p)
 
-# +++ snmp_logging.h
+# include/net-snmp/library/snmp_logging.h
 netsnmp_log_message._fields_ = [
     ("priority", c_int),
     ("msg", c_char_p),
@@ -408,7 +408,7 @@ PRIORITY_MAP = {
     LOG_DEBUG: logging.DEBUG,
 }
 
-# --- callback.h typedef int (SNMPCallback) (int majorID, int minorID, void *serverarg, void *clientarg);
+# snmplib/snmp_logging.c -> free(logh);
 def netsnmp_logger(a, b, msg):
     msg = cast(msg, netsnmp_log_message_p)
     priority = PRIORITY_MAP.get(msg.contents.priority, logging.DEBUG)
@@ -418,7 +418,8 @@ def netsnmp_logger(a, b, msg):
 
 netsnmp_logger = log_callback(netsnmp_logger)
 
-# +++ callback.h int snmp_register_callback(int major, int minor, SNMPCallback * new_callback, void *arg);
+# include/net-snmp/library/callback.h ->
+# int snmp_register_callback(int major, int minor, SNMPCallback * new_callback, void *arg);
 lib.snmp_register_callback(
     SNMP_CALLBACK_LIBRARY, SNMP_CALLBACK_LOGGING, netsnmp_logger, 0
 )
@@ -426,7 +427,7 @@ lib.netsnmp_register_loghandler(NETSNMP_LOGHANDLER_CALLBACK, LOG_DEBUG)
 lib.snmp_pdu_create.restype = netsnmp_pdu_p
 lib.snmp_open.restype = POINTER(netsnmp_session)
 
-# --- snmp_transport.h -f_setup_session -identifier -f_get_taddr
+# include/net-snmp/library/snmp_transport.h
 netsnmp_transport._fields_ = [
     ("domain", POINTER(oid)),
     ("domain_length", c_int),
@@ -439,22 +440,32 @@ netsnmp_transport._fields_ = [
     ("data", c_void_p),
     ("data_length", c_int),
     ("msgMaxSize", c_size_t),
+    ("base_transport", POINTER(netsnmp_transport)),
     ("f_recv", c_void_p),
     ("f_send", c_void_p),
     ("f_close", c_void_p),
+    ("f_open", c_void_p),
     ("f_accept", c_void_p),
     ("f_fmtaddr", c_void_p),
+    ("f_config", c_void_p),
+    ("f_copy", c_void_p),
+    ("f_setup_session", c_void_p),
+    ("identifier", POINTER(u_char_p)),
+    ("f_get_taddr", c_void_p),
 ]
 
-# +++ snmp_transport.h netsnmp_transport *netsnmp_tdomain_transport(const char *str, int local, const char *default_domain);
+# include/net-snmp/library/snmp_transport.h ->
+# netsnmp_transport *netsnmp_tdomain_transport( const char *str, int local, const char *default_domain);
 lib.netsnmp_tdomain_transport.restype = POINTER(netsnmp_transport)
 
-# +++ snmp_api.h netsnmp_session *snmp_add(netsnmp_session *, struct netsnmp_transport_s *,
-#     int (*fpre_parse) (netsnmp_session *, struct netsnmp_transport_s *, void *, int),
-#     int (*fpost_parse) (netsnmp_session *, netsnmp_pdu *, int));
+# include/net-snmp/library/snmp_api.h -> netsnmp_session *snmp_add(
+#       netsnmp_session *, struct netsnmp_transport_s *,
+#       int (*fpre_parse) (netsnmp_session *, struct netsnmp_transport_s *, void *, int),
+#       int (*fpost_parse) (netsnmp_session *, netsnmp_pdu *, int)
+#     );
 lib.snmp_add.restype = POINTER(netsnmp_session)
 
-# +++ snmp_api.h int snmp_add_var(netsnmp_pdu *, const oid *, size_t, char, const char *);
+# include/net-snmp/session_api.h -> int snmp_add_var(netsnmp_pdu *, const oid *, size_t, char, const char *);
 lib.snmp_add_var.argtypes = [
     netsnmp_pdu_p,
     POINTER(oid),
@@ -465,17 +476,9 @@ lib.snmp_add_var.argtypes = [
 
 lib.get_uptime.restype = c_long
 
-# +++ session_api.h int snmp_send(netsnmp_session *, netsnmp_pdu *);
+# include/net-snmp/session_api.h -> int snmp_send(netsnmp_session *, netsnmp_pdu *);
 lib.snmp_send.argtypes = (POINTER(netsnmp_session), netsnmp_pdu_p)
 lib.snmp_send.restype = c_int
-
-# int snmp_input(int, netsnmp_session *, int, netsnmp_pdu *, void *);
-
-# +++ snmptrapd_handlers.h int snmp_input(int op, netsnmp_session *session, int reqid, netsnmp_pdu *pdu, void *magic);
-# NOT USED
-snmp_input_t = CFUNCTYPE(
-    c_int, c_int, POINTER(netsnmp_session), c_int, netsnmp_pdu_p, c_void_p
-)
 
 
 # A pointer to a _CallbackData struct is used for the callback_magic
