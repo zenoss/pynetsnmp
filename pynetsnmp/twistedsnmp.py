@@ -325,7 +325,7 @@ class AgentProxy(object):
                 # if not the timeout will be called at some point
                 self.defers[pdu.reqid] = (d, oids_requested)
                 return
-        if pdu.errstat != netsnmp.SNMP_ERR_NOERROR:
+        if pdu.errstat != SNMP_ERR_NOERROR:
             pduError = PDU_ERRORS.get(
                 pdu.errstat, "Unknown error (%d)" % pdu.errstat
             )

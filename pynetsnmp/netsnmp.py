@@ -157,7 +157,24 @@ class netsnmp_transport(Structure):
     pass
 
 
-# int (*netsnmp_callback) (int, netsnmp_session *, int, netsnmp_pdu *, void *);
+# include/net-snmp/types.h
+class netsnmp_trap_stats(Structure):
+    _fields_ = [
+        ("sent_count", c_ulong),
+        ("sent_last_sent", c_ulong),
+        ("sent_fail_count", c_ulong),
+        ("sent_last_fail", c_ulong),
+        ("ack_count", c_ulong),
+        ("ack_last_rcvd", c_ulong),
+        ("sec_err_count", c_ulong),
+        ("sec_err_last", c_ulong),
+        ("timeouts", c_ulong),
+        ("sent_last_timeout", c_ulong),
+    ]
+
+
+# include/net-snmp/types.h -> int (*netsnmp_callback) (int, netsnmp_session *, int, netsnmp_pdu *, void *);
+# the first argument is the return type in CFUNCTYPE notation.
 netsnmp_callback = CFUNCTYPE(
     c_int,
     c_int,
@@ -176,6 +193,16 @@ _netsnmp_str_version = tuple(str(v) for v in version.split("."))
 localname = []
 paramName = []
 transportConfig = []
+trapStats = []
+msgMaxSize = []
+baseTransport = []
+fOpen = []
+fConfig = []
+fCopy = []
+fSetupSession = []
+identifier = []
+fGetTaddr = []
+
 if float_version < 5.099:
     raise ImportError("netsnmp version 5.1 or greater is required")
 if float_version > 5.199:
@@ -197,6 +224,21 @@ if _netsnmp_str_version >= ("5", "6"):
     transportConfig = [
         ("transport_configuration", POINTER(netsnmp_container_s))
     ]
+if _netsnmp_str_version >= ('5','8'):
+    # Version >= 5.8 broke binary compatibility, adding the trap_stats member to the netsnmp_session struct
+    trapStats = [('trap_stats', POINTER(netsnmp_trap_stats))]
+    # Version >= 5.8 broke binary compatibility, adding the msgMaxSize member to the snmp_pdu struct
+    msgMaxSize = [('msgMaxSize', c_long)]
+    baseTransport = [("base_transport", POINTER(netsnmp_transport))]
+    fOpen = [("f_open", c_void_p)]
+    fConfig = [("f_config", c_void_p)]
+    fCopy = [("f_copy", c_void_p)]
+    fSetupSession = [("f_setup_session", c_void_p)]
+    identifier = [("identifier", POINTER(u_char_p))]
+    fGetTaddr = [("f_get_taddr", c_void_p)]
+    # Version >= 5.8 broke binary compatibility, doubling the size of these constants used for struct sizes
+    USM_AUTH_KU_LEN = 64
+    USM_PRIV_KU_LEN = 64
 
 
 SNMP_VERSION_MAP = {
@@ -210,7 +252,7 @@ SNMP_VERSION_MAP = {
 }
 
 
-# Version
+# include/net-snmp/types.h
 netsnmp_session._fields_ = (
     [
         ("version", c_long),
@@ -261,7 +303,7 @@ netsnmp_session._fields_ = (
         ("securityModel", c_int),
         ("securityLevel", c_int),
     ]
-    + paramName
+    + paramName + trapStats
     + [
         ("securityInfo", c_void_p),
     ]
@@ -281,11 +323,10 @@ class counter64(Structure):
         ("low", c_ulong),
     ]
 
-
+# include/net-snmp/types.h
 class netsnmp_vardata(Union):
     _fields_ = [
         ("integer", POINTER(c_long)),
-        ("uinteger", POINTER(c_ulong)),
         ("string", c_char_p),
         ("objid", POINTER(oid)),
         ("bitstring", POINTER(c_ubyte)),
@@ -298,7 +339,7 @@ class netsnmp_vardata(Union):
 class netsnmp_variable_list(Structure):
     pass
 
-
+# include/net-snmp/types.h
 netsnmp_variable_list._fields_ = [
     ("next_variable", POINTER(netsnmp_variable_list)),
     ("name", POINTER(oid)),
@@ -312,7 +353,7 @@ netsnmp_variable_list._fields_ = [
     ("dataFreeHook", dataFreeHook),
     ("index", c_int),
 ]
-
+# include/net-snmp/types.h
 netsnmp_pdu._fields_ = [
     ("version", c_long),
     ("command", c_int),
@@ -327,6 +368,7 @@ netsnmp_pdu._fields_ = [
     ("securityModel", c_int),
     ("securityLevel", c_int),
     ("msgParseModel", c_int),
+    ] + msgMaxSize + [
     ("transport_data", c_void_p),
     ("transport_data_length", c_int),
     ("tDomain", POINTER(oid)),
@@ -361,7 +403,11 @@ class netsnmp_log_message(Structure):
 
 
 netsnmp_log_message_p = POINTER(netsnmp_log_message)
+
+# callback.h typedef int (SNMPCallback) (int majorID, int minorID, void *serverarg, void *clientarg);
 log_callback = CFUNCTYPE(c_int, c_int, netsnmp_log_message_p, c_void_p)
+
+# include/net-snmp/library/snmp_logging.h
 netsnmp_log_message._fields_ = [
     ("priority", c_int),
     ("msg", c_char_p),
@@ -377,7 +423,9 @@ PRIORITY_MAP = {
     LOG_DEBUG: logging.DEBUG,
 }
 
-
+# snmplib/snmp_logging.c -> free(logh);
+# include/net-snmp/output_api.h -> int  snmp_log( int priority, const char *format, ...)
+# in net-snmp -> snmp_log(LOG_ERR|WARNING|INFO|DEBUG, msg)
 def netsnmp_logger(a, b, msg):
     msg = cast(msg, netsnmp_log_message_p)
     priority = PRIORITY_MAP.get(msg.contents.priority, logging.DEBUG)
@@ -386,6 +434,9 @@ def netsnmp_logger(a, b, msg):
 
 
 netsnmp_logger = log_callback(netsnmp_logger)
+
+# include/net-snmp/library/callback.h ->
+# int snmp_register_callback(int major, int minor, SNMPCallback * new_callback, void *arg);
 lib.snmp_register_callback(
     SNMP_CALLBACK_LIBRARY, SNMP_CALLBACK_LOGGING, netsnmp_logger, 0
 )
@@ -393,7 +444,7 @@ lib.netsnmp_register_loghandler(NETSNMP_LOGHANDLER_CALLBACK, LOG_DEBUG)
 lib.snmp_pdu_create.restype = netsnmp_pdu_p
 lib.snmp_open.restype = POINTER(netsnmp_session)
 
-
+# include/net-snmp/library/snmp_transport.h
 netsnmp_transport._fields_ = [
     ("domain", POINTER(oid)),
     ("domain_length", c_int),
@@ -406,15 +457,27 @@ netsnmp_transport._fields_ = [
     ("data", c_void_p),
     ("data_length", c_int),
     ("msgMaxSize", c_size_t),
+    ] + baseTransport + [
     ("f_recv", c_void_p),
     ("f_send", c_void_p),
     ("f_close", c_void_p),
+    ] + fOpen + [
     ("f_accept", c_void_p),
     ("f_fmtaddr", c_void_p),
-]
+] + fCopy + fCopy + fSetupSession + identifier + fGetTaddr
+
+# include/net-snmp/library/snmp_transport.h ->
+# netsnmp_transport *netsnmp_tdomain_transport( const char *str, int local, const char *default_domain);
 lib.netsnmp_tdomain_transport.restype = POINTER(netsnmp_transport)
 
+# include/net-snmp/library/snmp_api.h -> netsnmp_session *snmp_add(
+#       netsnmp_session *, struct netsnmp_transport_s *,
+#       int (*fpre_parse) (netsnmp_session *, struct netsnmp_transport_s *, void *, int),
+#       int (*fpost_parse) (netsnmp_session *, netsnmp_pdu *, int)
+#     );
 lib.snmp_add.restype = POINTER(netsnmp_session)
+
+# include/net-snmp/session_api.h -> int snmp_add_var(netsnmp_pdu *, const oid *, size_t, char, const char *);
 lib.snmp_add_var.argtypes = [
     netsnmp_pdu_p,
     POINTER(oid),
@@ -425,13 +488,9 @@ lib.snmp_add_var.argtypes = [
 
 lib.get_uptime.restype = c_long
 
+# include/net-snmp/session_api.h -> int snmp_send(netsnmp_session *, netsnmp_pdu *);
 lib.snmp_send.argtypes = (POINTER(netsnmp_session), netsnmp_pdu_p)
 lib.snmp_send.restype = c_int
-
-# int snmp_input(int, netsnmp_session *, int, netsnmp_pdu *, void *);
-snmp_input_t = CFUNCTYPE(
-    c_int, c_int, POINTER(netsnmp_session), c_int, netsnmp_pdu_p, c_void_p
-)
 
 
 # A pointer to a _CallbackData struct is used for the callback_magic
@@ -511,9 +570,9 @@ decoder = {
     chr(ASN_OBJECT_ID): decodeOid,
     chr(ASN_BIT_STR): decodeString,
     chr(ASN_IPADDRESS): decodeIp,
-    chr(ASN_COUNTER): lambda pdu: pdu.val.uinteger.contents.value,
-    chr(ASN_GAUGE): lambda pdu: pdu.val.uinteger.contents.value,
-    chr(ASN_TIMETICKS): lambda pdu: pdu.val.uinteger.contents.value,
+    chr(ASN_COUNTER): lambda pdu: pdu.val.integer.contents.value,
+    chr(ASN_GAUGE): lambda pdu: pdu.val.integer.contents.value,
+    chr(ASN_TIMETICKS): lambda pdu: pdu.val.integer.contents.value,
     chr(ASN_COUNTER64): decodeBigInt,
     chr(ASN_APP_FLOAT): lambda pdu: pdu.val.float.contents.value,
     chr(ASN_APP_DOUBLE): lambda pdu: pdu.val.double.contents.value,

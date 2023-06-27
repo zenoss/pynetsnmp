@@ -1,6 +1,6 @@
 # Define the image name, version and tag name for the docker build image
 IMAGENAME = build-tools
-VERSION = 0.0.5
+VERSION = 0.0.15-dev
 TAG = zenoss/$(IMAGENAME):$(VERSION)
 
 UID := $(shell id -u)
@@ -12,7 +12,7 @@ build-bdist:
 		-v $(PWD):/mnt \
 		--user $(UID):$(GID) \
 		$(TAG) \
-		/bin/bash -c "cd /mnt && python setup.py bdist_wheel"
+		/bin/bash -c "cd /mnt && /usr/bin/python2.7 setup.py bdist_wheel"
 
 build-sdist:
 	@echo "Building a source distribution of pynetsnmp"
@@ -20,7 +20,7 @@ build-sdist:
 		-v $(PWD):/mnt \
 		--user $(UID):$(GID) \
 		$(TAG) \
-		/bin/bash -c "cd /mnt && python setup.py sdist"
+		/bin/bash -c "cd /mnt && /usr/local/bin/python2.7 setup.py sdist"
 
 # Default to building a binary distribution
 build: build-bdist

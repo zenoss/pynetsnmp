@@ -1,6 +1,6 @@
 import logging
-import netsnmp
-import twistedsnmp
+from pynetsnmp import netsnmp
+from pynetsnmp import twistedsnmp
 import sys
 
 from twisted.internet import reactor
