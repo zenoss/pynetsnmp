@@ -1,29 +1,25 @@
-# Define the image name, version and tag name for the docker build image
-IMAGENAME = build-tools
-VERSION = 0.0.15-dev
-TAG = zenoss/$(IMAGENAME):$(VERSION)
+IMAGENAME = zenoss/build-tools
+VERSION = 0.0.14
+TAG = $(IMAGENAME):$(VERSION)
 
 UID := $(shell id -u)
 GID := $(shell id -g)
 
-build-bdist:
-	@echo "Building a binary distribution of pynetsnmp"
-	docker run --rm \
-		-v $(PWD):/mnt \
-		--user $(UID):$(GID) \
-		$(TAG) \
-		/bin/bash -c "cd /mnt && /usr/bin/python2.7 setup.py bdist_wheel"
+DOCKER_COMMAND = docker run --rm -v $(PWD):/mnt -w /mnt -u $(UID):$(GID) $(TAG)
 
-build-sdist:
-	@echo "Building a source distribution of pynetsnmp"
-	docker run --rm \
-		-v $(PWD):/mnt \
-		--user $(UID):$(GID) \
-		$(TAG) \
-		/bin/bash -c "cd /mnt && /usr/local/bin/python2.7 setup.py sdist"
+.DEFAULT_GOAL := build
 
-# Default to building a binary distribution
-build: build-bdist
+.PHONY: bdist
+bdist:
+	@$(DOCKER_COMMAND) bash -c "python setup.py bdist_wheel"
 
+.PHONY: sdist
+sdist:
+	@$(DOCKER_COMMAND) bash -c "python setup.py sdist"
+
+.PHONY: build
+build: bdist
+
+.PHONY: clean
 clean:
-	rm -rf *.pyc MANIFEST dist build pynetsnmp.egg-info
+	rm -rf *.pyc dist build pynetsnmp.egg-info
