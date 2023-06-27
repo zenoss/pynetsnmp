@@ -174,7 +174,7 @@ class netsnmp_trap_stats(Structure):
 
 
 # include/net-snmp/types.h -> int (*netsnmp_callback) (int, netsnmp_session *, int, netsnmp_pdu *, void *);
-# the first argument is self. Without it, callback function throws an error with not enough args, 4 from 5
+# the first argument is the return type in CFUNCTYPE notation.
 netsnmp_callback = CFUNCTYPE(
     c_int,
     c_int,
