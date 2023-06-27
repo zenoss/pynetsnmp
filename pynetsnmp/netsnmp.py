@@ -195,6 +195,14 @@ paramName = []
 transportConfig = []
 trapStats = []
 msgMaxSize = []
+baseTransport = []
+fOpen = []
+fConfig = []
+fCopy = []
+fSetupSession = []
+identifier = []
+fGetTaddr = []
+
 if float_version < 5.099:
     raise ImportError("netsnmp version 5.1 or greater is required")
 if float_version > 5.199:
@@ -221,6 +229,13 @@ if _netsnmp_str_version >= ('5','8'):
     trapStats = [('trap_stats', POINTER(netsnmp_trap_stats))]
     # Version >= 5.8 broke binary compatibility, adding the msgMaxSize member to the snmp_pdu struct
     msgMaxSize = [('msgMaxSize', c_long)]
+    baseTransport = [("base_transport", POINTER(netsnmp_transport))]
+    fOpen = [("f_open", c_void_p)]
+    fConfig = [("f_config", c_void_p)]
+    fCopy = [("f_copy", c_void_p)]
+    fSetupSession = [("f_setup_session", c_void_p)]
+    identifier = [("identifier", POINTER(u_char_p))]
+    fGetTaddr = [("f_get_taddr", c_void_p)]
     # Version >= 5.8 broke binary compatibility, doubling the size of these constants used for struct sizes
     USM_AUTH_KU_LEN = 64
     USM_PRIV_KU_LEN = 64
@@ -442,19 +457,14 @@ netsnmp_transport._fields_ = [
     ("data", c_void_p),
     ("data_length", c_int),
     ("msgMaxSize", c_size_t),
-    ("base_transport", POINTER(netsnmp_transport)),
+    ] + baseTransport + [
     ("f_recv", c_void_p),
     ("f_send", c_void_p),
     ("f_close", c_void_p),
-    ("f_open", c_void_p),
+    ] + fOpen + [
     ("f_accept", c_void_p),
     ("f_fmtaddr", c_void_p),
-    ("f_config", c_void_p),
-    ("f_copy", c_void_p),
-    ("f_setup_session", c_void_p),
-    ("identifier", POINTER(u_char_p)),
-    ("f_get_taddr", c_void_p),
-]
+] + fCopy + fCopy + fSetupSession + identifier + fGetTaddr
 
 # include/net-snmp/library/snmp_transport.h ->
 # netsnmp_transport *netsnmp_tdomain_transport( const char *str, int local, const char *default_domain);
