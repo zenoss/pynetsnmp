@@ -4,10 +4,9 @@ import logging
 import struct
 
 from ipaddr import IPAddress
-from twisted.internet import reactor
+from twisted.internet import defer, reactor
 from twisted.internet.error import TimeoutError
 from twisted.python import failure
-from twisted.internet import defer
 
 from . import netsnmp
 from .CONSTANTS import (
@@ -31,6 +30,8 @@ from .CONSTANTS import (
     SNMP_ERR_WRONGTYPE,
     SNMP_ERR_WRONGVALUE,
 )
+from .conversions import asOidStr, asOid
+from .tableretriever import TableRetriever
 
 
 class Timer(object):
@@ -118,16 +119,6 @@ def updateReactor():
 class SnmpNameError(Exception):
     def __init__(self, oid):
         Exception.__init__(self, "Bad Name", oid)
-
-
-def asOidStr(oid):
-    """converts an oid int sequence to an oid string"""
-    return "." + ".".join([str(x) for x in oid])
-
-
-def asOid(oidStr):
-    """converts an OID string into a tuple of integers"""
-    return tuple([int(x) for x in oidStr.strip(".").split(".")])
 
 
 def _get_agent_spec(ipobj, interface, port):
@@ -443,8 +434,6 @@ class AgentProxy(object):
         return d
 
     def getTable(self, oids, **kw):
-        from tableretriever import TableRetriever
-
         try:
             t = TableRetriever(self, oids, **kw)
         except Exception as ex:
