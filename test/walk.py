@@ -33,6 +33,7 @@ class Walker(netsnmp.Session):
 
     def timeout(self, reqid):
         self.stop("Timeout")
+        raise RuntimeError("Timeout occurred")
 
     def start(self):
         self.open()
@@ -46,21 +47,28 @@ def stop(results):
     for success, values in results:
         if success:
             host, values = values
-            print host, len(values)
+            print "Host:", host
+
+            print "Results length", len(values)
         else:
-            print values
+            print "Result", values
     if reactor.running:
         reactor.stop()
 
 
 def main():
+    print "=================== \nSNMP Walk Test"
+
     import getopt
 
     # from snmp_parse_args.c
     opts = "Y:VhHm:M:O:I:P:D:dv:r:t:c:Z:e:E:n:u:l:x:X:a:A:p:T:-:3:s:S:L:"
     args, hosts = getopt.getopt(sys.argv[1:], opts)
+
     if not hosts:
         hosts = ["localhost"]
+    if not args:
+        args = [('-v', '1'), ('-c', 'public')]
     d = defer.DeferredList(
         [Walker(peername=host, cmdLineArgs=args).start() for host in hosts],
         consumeErrors=True,
@@ -68,6 +76,7 @@ def main():
     d.addBoth(stop)
     twistedsnmp.updateReactor()
     reactor.run()
+    print "==================="
 
 
 if __name__ == "__main__":
