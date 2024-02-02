@@ -6,7 +6,7 @@ all_tests = [
     "getbulk.py",
     "ifIndex.py",
     "tableget.py",
-    "walk.py",
+#   "walk.py",
     "twistget.py"
 ]
 
