@@ -49,6 +49,12 @@ def main():
         allowCache=True
     )
 
+    # open a lot of files, to push fd numbers into > 1024 so that we exercise
+    # snmp_select_info2 / snmp_read2
+    fds = []
+    for n in range(1024):
+        fds.append(open('/dev/null', 'r'))
+
     proxy.open()
     d = proxy.get(args.oids, 1.0, 3)
     d.addBoth(print_results)

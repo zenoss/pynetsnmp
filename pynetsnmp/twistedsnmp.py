@@ -5,6 +5,7 @@ import struct
 
 from ipaddr import IPAddress
 from twisted.internet import defer, reactor
+from twisted.internet.selectreactor import SelectReactor
 from twisted.internet.error import TimeoutError
 from twisted.python import failure
 
@@ -81,7 +82,7 @@ class SnmpReader:  # (IReadDescriptor):
         self.fd = fd
 
     def doRead(self):
-        netsnmp.snmp_read(self.fd)
+        netsnmp.snmp_read2(self.fd)
         # updateReactor()
 
     def fileno(self):
@@ -94,11 +95,19 @@ class SnmpReader:  # (IReadDescriptor):
 def updateReactor():
     "Add/remove event handlers for SNMP file descriptors and timers"
 
-    fds, t = netsnmp.snmp_select_info()
+    isSelect = isinstance(reactor, SelectReactor)
+    fds, t = netsnmp.snmp_select_info2()
+
     log = netsnmp._getLogger("updateReactor")
     if log.getEffectiveLevel() < logging.DEBUG:
         log.debug("reactor settings: %r, %r", fds, t)
     for fd in fds:
+        if isSelect and fd > netsnmp.MAXFD:
+            log.error("fd > %d detected!!" +
+                "  This will not work properly with the SelectReactor and is being ignored." +
+                "  Timeouts will occur unless you switch to EPollReactor instead!")
+            continue
+
         if fd not in fdMap:
             reader = SnmpReader(fd)
             fdMap[fd] = reader
