@@ -948,6 +948,7 @@ class Session(object):
 
 
 MAXFD = 1024
+FD_SETSIZE = MAXFD
 fdset = c_int32 * (MAXFD / 32)
 
 
@@ -968,6 +969,17 @@ def fdset2list(rd, n):
                     result.append(i * 32 + j)
     return result
 
+class netsnmp_large_fd_set(Structure):
+    # This structure must be initialized by calling netsnmp_large_fd_set_init()
+    # and must be cleaned up via netsnmp_large_fd_set_cleanup(). If this last
+    # function is not called this may result in a memory leak.
+
+    _fields_ = [
+        ("lfs_setsize", c_uint),
+        ("lfs_setptr", POINTER(fdset)),
+        ("lfs_set", fdset)
+    ]
+
 
 def snmp_select_info():
     rd = fdset()
@@ -983,12 +995,39 @@ def snmp_select_info():
         t = timeout.tv_sec + timeout.tv_usec / 1e6
     return fdset2list(rd, maxfd.value), t
 
+def snmp_select_info2():
+    rd = netsnmp_large_fd_set()
+    lib.netsnmp_large_fd_set_init(byref(rd), FD_SETSIZE)
+    maxfd = c_int(0)
+    timeout = timeval()
+    timeout.tv_sec = 1
+    timeout.tv_usec = 0
+    block = c_int(0)
+    maxfd = c_int(MAXFD)
+    lib.snmp_select_info2(byref(maxfd), byref(rd), byref(timeout), byref(block))
+    t = None
+    if not block:
+        t = timeout.tv_sec + timeout.tv_usec / 1e6
+
+    result = []
+    for fd in range(0, maxfd.value + 1):
+        if lib.netsnmp_large_fd_is_set(fd, byref(rd)):
+            result.append(fd)
+
+    lib.netsnmp_large_fd_set_cleanup(byref(rd))
+    return result, t
 
 def snmp_read(fd):
     rd = fdset()
     rd[fd / 32] |= 1 << (fd % 32)
     lib.snmp_read(byref(rd))
 
+def snmp_read2(fd):
+    rd = netsnmp_large_fd_set()
+    lib.netsnmp_large_fd_set_init(byref(rd), FD_SETSIZE)
+    lib.netsnmp_large_fd_setfd(fd, byref(rd))
+    lib.snmp_read2(byref(rd))
+    lib.netsnmp_large_fd_set_cleanup(byref(rd))
 
 done = False
 
