@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="pynetsnmp",
-    version="0.41.3",
+    version="0.42.0",
     packages=find_packages(),
     install_requires=["setuptools"],
     include_package_data=True,

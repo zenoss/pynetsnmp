@@ -1,10 +1,11 @@
+import argparse
 import logging
 import os
 import sys
 
-import CONSTANTS as C
-import netsnmp
-import twistedsnmp
+from pynetsnmp import CONSTANTS as C
+from pynetsnmp import netsnmp
+from pynetsnmp import twistedsnmp
 
 from twisted.internet import reactor
 
@@ -33,7 +34,15 @@ class Trapd(netsnmp.Session):
 
 
 def main(argv):
-    hostPort = argv[1]
+    print "=================== \nSNMP Trap Receiver Test"
+
+    parser = argparse.ArgumentParser(description="SNMP Trap Receiver")
+    parser.add_argument("--host", default="localhost", help="Host to listen on")
+    parser.add_argument("--port", type=int, default=162, help="Port to listen on")
+    args = parser.parse_args()
+
+    hostPort = ":".join([args.host, str(args.port)])
+
     s = Trapd()
     s.awaitTraps(hostPort)
     twistedsnmp.updateReactor()

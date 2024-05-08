@@ -1,7 +1,7 @@
+import argparse
 import logging
-import netsnmp
-import twistedsnmp
-import sys
+from pynetsnmp import netsnmp
+from pynetsnmp import twistedsnmp
 
 from twisted.internet import reactor
 
@@ -28,7 +28,7 @@ class Table(netsnmp.Session):
                 self.stop("table end")
                 return
             print ".".join(map(str, oid)), ":", repr(value)
-        print
+
         if not results:
             self.stop("empty result")
         else:
@@ -36,24 +36,31 @@ class Table(netsnmp.Session):
 
     def timeout(self, reqid):
         self.stop("Timeout")
+        raise RuntimeError("Timeout occurred")
 
 
 def main():
-    name = "localhost"
-    community = "public"
-    if len(sys.argv) >= 2:
-        name = sys.argv[1]
+    print "=================== \nSNMP Get Bulk Test"
+    parser = argparse.ArgumentParser(description="Get bulk")
+    parser.add_argument("--host", default="localhost", help="SNMP peername (default: localhost)")
+    parser.add_argument("--community", default="public", help="SNMP community string (default: public)")
+    args = parser.parse_args()
+
+    host = args.host
+    community = args.community
     oid = (1, 3, 6, 1, 2, 1, 25, 4, 2, 1, 2)
     t = Table(
         version=netsnmp.SNMP_VERSION_2c,
-        peername=name,
+        peername=host,
         community=community,
         community_len=len(community),
     )
+
     t.open()
     t.getTable(oid)
     twistedsnmp.updateReactor()
     reactor.run()
+    print "==================="
 
 
 if __name__ == "__main__":
