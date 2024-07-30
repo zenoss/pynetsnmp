@@ -717,13 +717,30 @@ class Session(object):
 
     cb = None
 
-    def __init__(self, cmdLineArgs=(), **kw):
+    def __init__(self, cmdLineArgs=(), freeEtimelist=True, **kw):
         self.cmdLineArgs = cmdLineArgs
+        self.freeEtimelist = freeEtimelist
         self.kw = kw
         self.sess = None
         self.args = None
         self._data = None  # ref to _CallbackData object
         self._log = _getLogger("session")
+
+    def _snmp_send(self, session, pdu):
+        """Allows to execute free_etimelist() after each snmp_send() call
+
+        Executes lib.free_etimelist() after the each lib.snmp_send() call if
+        `freeEtimelist` attribute is set or re-calls lib.snmp_send() otherwise.
+        This allows to free all the memory used by entries in the etimelist
+        inside the net-snmp library to proceess devices with duplicated engineID
+        PS - please note, that this feature is not supported by RFC
+        """
+
+        try:
+            return lib.snmp_send(self.sess, pdu)
+        finally:
+            if self.freeEtimelist:
+                lib.free_etimelist()
 
     def open(self):
         sess = netsnmp_session()
@@ -857,7 +874,7 @@ class Session(object):
                 n = strToOid(n)
                 lib.snmp_add_var(pdu, n, len(n), t, v)
 
-        lib.snmp_send(self.sess, pdu)
+        lib._snmp_send(self.sess, pdu)
 
     def close(self):
         if self.sess is not None:
@@ -921,7 +938,7 @@ class Session(object):
         for oid in oids:
             oid = mkoid(oid)
             lib.snmp_add_null_var(req, oid, len(oid))
-        send_status = lib.snmp_send(self.sess, req)
+        send_status = lib._snmp_send(self.sess, req)
         self._handle_send_status(req, send_status, "get")
         return req.contents.reqid
 
@@ -933,7 +950,7 @@ class Session(object):
         for oid in oids:
             oid = mkoid(oid)
             lib.snmp_add_null_var(req, oid, len(oid))
-        send_status = lib.snmp_send(self.sess, req)
+        send_status = lib._snmp_send(self.sess, req)
         self._handle_send_status(req, send_status, "get")
         return req.contents.reqid
 
@@ -941,7 +958,7 @@ class Session(object):
         req = self._create_request(SNMP_MSG_GETNEXT)
         oid = mkoid(root)
         lib.snmp_add_null_var(req, oid, len(oid))
-        send_status = lib.snmp_send(self.sess, req)
+        send_status = lib._snmp_send(self.sess, req)
         self._log.debug("walk: send_status=%s", send_status)
         self._handle_send_status(req, send_status, "walk")
         return req.contents.reqid
