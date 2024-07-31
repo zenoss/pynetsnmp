@@ -874,7 +874,7 @@ class Session(object):
                 n = strToOid(n)
                 lib.snmp_add_var(pdu, n, len(n), t, v)
 
-        lib._snmp_send(self.sess, pdu)
+        self._snmp_send(self.sess, pdu)
 
     def close(self):
         if self.sess is not None:
@@ -938,7 +938,7 @@ class Session(object):
         for oid in oids:
             oid = mkoid(oid)
             lib.snmp_add_null_var(req, oid, len(oid))
-        send_status = lib._snmp_send(self.sess, req)
+        send_status = self._snmp_send(self.sess, req)
         self._handle_send_status(req, send_status, "get")
         return req.contents.reqid
 
@@ -950,7 +950,7 @@ class Session(object):
         for oid in oids:
             oid = mkoid(oid)
             lib.snmp_add_null_var(req, oid, len(oid))
-        send_status = lib._snmp_send(self.sess, req)
+        send_status = self._snmp_send(self.sess, req)
         self._handle_send_status(req, send_status, "get")
         return req.contents.reqid
 
@@ -958,7 +958,7 @@ class Session(object):
         req = self._create_request(SNMP_MSG_GETNEXT)
         oid = mkoid(root)
         lib.snmp_add_null_var(req, oid, len(oid))
-        send_status = lib._snmp_send(self.sess, req)
+        send_status = self._snmp_send(self.sess, req)
         self._log.debug("walk: send_status=%s", send_status)
         self._handle_send_status(req, send_status, "walk")
         return req.contents.reqid
