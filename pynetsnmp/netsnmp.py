@@ -727,17 +727,18 @@ class Session(object):
         self._log = _getLogger("session")
 
     def _snmp_send(self, session, pdu):
-        """Allows to execute free_etimelist() after each snmp_send() call
+        """Allows execution of free_etimelist() after each snmp_send() call.
 
-        Executes lib.free_etimelist() after the each lib.snmp_send() call if
-        `freeEtimelist` attribute is set or re-calls lib.snmp_send() otherwise.
-        This allows to free all the memory used by entries in the etimelist
-        inside the net-snmp library to proceess devices with duplicated engineID
-        PS - please note, that this feature is not supported by RFC
+        Executes lib.free_etimelist() after each lib.snmp_send() call if the
+        `freeEtimelist` attribute is set, or re-calls lib.snmp_send() otherwise.
+        This frees all the memory used by entries in the etimelist inside t he
+        net-snmp library, allowing the processing of devices with duplicated engineID.
+
+        Note: This feature is not supported by RFC.
         """
 
         try:
-            return lib.snmp_send(self.sess, pdu)
+            return lib.snmp_send(session, pdu)
         finally:
             if self.freeEtimelist:
                 lib.free_etimelist()
