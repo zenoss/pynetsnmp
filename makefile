@@ -27,7 +27,7 @@ clean:
 .PHONY: test
 HOST ?= 127.0.0.1
 test:
-	docker run --rm -v $(PWD):/mnt -w /mnt --user 0 $(TAG) \
+	docker run --rm -v $(PWD):/mnt -w /mnt $(TAG) \
     bash -c "python setup.py bdist_wheel \
     && pip install dist/pynetsnmp*py2-none-any.whl ipaddr Twisted==20.3.0 \
     && cd test \
