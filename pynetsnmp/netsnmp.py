@@ -808,7 +808,6 @@ class Session(object):
             lib.netsnmp_ds_set_string(
                 NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_APPTYPE, "pynetsnmp"
             )
-        lib.init_usm()
         if debug:
             lib.debug_register_tokens("snmp_parse")  # or "ALL" for everything
             lib.snmp_set_do_debugging(1)
