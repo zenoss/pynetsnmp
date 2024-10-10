@@ -858,29 +858,28 @@ class Session(object):
     def create_users(self, users):
         self._log.debug("create_users: Creating %s users.", len(users))
         for user in users:
-            if user.version == 3:
-                try:
-                    line = ""
-                    if user.engine_id:
-                        line = "-e {} ".format(user.engine_id)
-                    line += " ".join(
-                        [
-                            user.username,
-                            user.authentication_type,  # MD5 or SHA
-                            user.authentication_passphrase,
-                            user.privacy_protocol,  # DES or AES
-                            user.privacy_passphrase,
-                        ]
-                    )
-                    lib.usm_parse_create_usmUser("createUser", line)
-                    self._log.debug("create_users: created user: %s", user)
-                except Exception as e:
-                    self._log.debug(
-                        "create_users: could not create user: %s: (%s: %s)",
-                        user,
-                        e.__class__.__name__,
-                        e,
-                    )
+            if user.version != SNMP_VERSION_3:
+                continue
+            try:
+                line = ""
+                if user.engine_id:
+                    line = "-e '{}' ".format(user.engine_id)
+                line += "'{}' '{}' '{}' '{}' '{}'".format(
+                    _escape_char("'", user.username),
+                    _escape_char("'", user.authentication_type),
+                    _escape_char("'", user.authentication_passphrase),
+                    _escape_char("'", user.privacy_protocol),
+                    _escape_char("'", user.privacy_passphrase),
+                )
+                lib.usm_parse_create_usmUser("createUser", line)
+                self._log.debug("create_users: created user: %s", user)
+            except Exception as e:
+                self._log.debug(
+                    "create_users: could not create user: %s: (%s: %s)",
+                    user,
+                    e.__class__.__name__,
+                    e,
+                )
 
     def sendTrap(self, trapoid, varbinds=None):
         if "-v1" in self.cmdLineArgs:
@@ -1007,6 +1006,10 @@ class Session(object):
         self._log.debug("walk: send_status=%s", send_status)
         self._handle_send_status(req, send_status, "walk")
         return req.contents.reqid
+
+
+def _escape_char(char, text):
+    return text.replace(char, r"\{}".format(char))
 
 
 MAXFD = 1024
