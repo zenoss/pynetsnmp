@@ -447,7 +447,7 @@ PRIORITY_MAP = {
 def netsnmp_logger(a, b, msg):
     msg = cast(msg, netsnmp_log_message_p)
     priority = PRIORITY_MAP.get(msg.contents.priority, logging.DEBUG)
-    _getLogger("netsnmp").log(priority, str(msg.contents.msg).strip())
+    _getLogger("libnetsnmp").log(priority, str(msg.contents.msg).strip())
     return 0
 
 
