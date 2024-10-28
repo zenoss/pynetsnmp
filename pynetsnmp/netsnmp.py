@@ -684,9 +684,7 @@ _doNothingProc = arg_parse_proc(_doNothingProc)
 
 
 def parse_args(args, session):
-    args = [
-        sys.argv[0],
-    ] + args
+    args = [sys.argv[0]] + args
     argc = len(args)
     argv = (c_char_p * argc)()
     for i in range(argc):
@@ -694,7 +692,9 @@ def parse_args(args, session):
         argv[i] = create_string_buffer(args[i]).raw
     # WARNING: Usage of snmp_parse_args call causes memory leak.
     if lib.snmp_parse_args(argc, argv, session, "", _doNothingProc) < 0:
-        raise ArgumentParseError("Unable to parse arguments", " ".join(argv))
+        raise ArgumentParseError(
+            "Unable to parse arguments  arguments='{}'".format(" ".join(argv))
+        )
     # keep a reference to the args for as long as sess is alive
     return argv
 
