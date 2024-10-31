@@ -31,7 +31,7 @@ class UsmUser(object):
         if not isinstance(auth, (type(None), Authentication)):
             raise ValueError("invalid authentication protocol")
         self.auth = auth
-        if not isinstance(auth, (type(None), Privacy)):
+        if not isinstance(priv, (type(None), Privacy)):
             raise ValueError("invalid privacy protocol")
         self.priv = priv
         self.engine = engine
@@ -54,7 +54,10 @@ class UsmUser(object):
             )
         else:
             priv = ()
-        seclevel = ("-l", _sec_level.get((auth, priv), "noAuthNoPriv"))
+        seclevel = (
+            "-l",
+            _sec_level.get((bool(auth), bool(priv)), "noAuthNoPriv"),
+        )
 
         return (
             ("-v", self.version)
