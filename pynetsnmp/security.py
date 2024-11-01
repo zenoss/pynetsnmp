@@ -94,8 +94,7 @@ class Authentication(object):
         self.protocol = auth_protocols[protocol]
         if not passphrase:
             raise ValueError(
-                "authentication protocol requires an "
-                "authentication passphrase"
+                "Authentication protocol requires a passphrase"
             )
         self.passphrase = passphrase
 
@@ -110,5 +109,5 @@ class Privacy(object):
             raise ValueError("Invalid Privacy protocol '{}'".format(protocol))
         self.protocol = priv_protocols[protocol]
         if not passphrase:
-            raise ValueError("privacy protocol requires a privacy passphrase")
+            raise ValueError("Privacy protocol requires a passphrase")
         self.passphrase = passphrase
