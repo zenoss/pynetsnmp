@@ -40,7 +40,7 @@ class UsmUser(object):
 
     def getArguments(self):
         auth = (
-            ("-a", str(self.auth.protocol), "-A", self.auth.passphrase)
+            ("-a", self.auth.protocol.name, "-A", self.auth.passphrase)
             if self.auth
             else ()
         )
@@ -48,7 +48,7 @@ class UsmUser(object):
             # The privacy arguments are only given if the authentication
             # arguments are also provided.
             priv = (
-                ("-x", str(self.priv.protocol), "-X", self.priv.passphrase)
+                ("-x", self.priv.protocol.name, "-X", self.priv.passphrase)
                 if self.priv
                 else ()
             )
@@ -69,6 +69,31 @@ class UsmUser(object):
             + (("-n", self.context) if self.context else ())
         )
 
+    def __eq__(self, other):
+        return (
+            self.name == other.name
+            and self.auth == other.auth
+            and self.priv == other.priv
+            and self.engine == other.engine
+            and self.context == other.context
+        )
+
+    def __str__(self):
+        info = ", ".join(
+            "{0}={1}".format(k, v)
+            for k, v in (
+                ("name", self.name),
+                ("auth", self.auth),
+                ("priv", self.priv),
+                ("engine", self.engine),
+                ("context", self.context),
+            )
+            if v
+        )
+        return "{0.__class__.__name__}(version={0.version}{1}{2})".format(
+            self, ", " if info else "", info
+        )
+
 
 _sec_level = {(True, True): "authPriv", (True, False): "authNoPriv"}
 _version_map = {
@@ -86,6 +111,8 @@ class Authentication(object):
     Provides the authentication data for UsmUser objects.
     """
 
+    __slots__ = ("protocol", "passphrase")
+
     def __init__(self, protocol, passphrase):
         if protocol is None:
             raise ValueError(
@@ -93,16 +120,27 @@ class Authentication(object):
             )
         self.protocol = auth_protocols[protocol]
         if not passphrase:
-            raise ValueError(
-                "Authentication protocol requires a passphrase"
-            )
+            raise ValueError("Authentication protocol requires a passphrase")
         self.passphrase = passphrase
+
+    def __eq__(self, other):
+        if not isinstance(other, Authentication):
+            return NotImplemented
+        return (
+            self.protocol == other.protocol
+            and self.passphrase == other.passphrase
+        )
+
+    def __str__(self):
+        return "{0.__class__.__name__}(protocol={0.protocol})".format(self)
 
 
 class Privacy(object):
     """
     Provides the privacy data for UsmUser objects.
     """
+
+    __slots__ = ("protocol", "passphrase")
 
     def __init__(self, protocol, passphrase):
         if protocol is None:
@@ -111,3 +149,14 @@ class Privacy(object):
         if not passphrase:
             raise ValueError("Privacy protocol requires a passphrase")
         self.passphrase = passphrase
+
+    def __eq__(self, other):
+        if not isinstance(other, Privacy):
+            return NotImplemented
+        return (
+            self.protocol == other.protocol
+            and self.passphrase == other.passphrase
+        )
+
+    def __str__(self):
+        return "{0.__class__.__name__}(protocol={0.protocol})".format(self)

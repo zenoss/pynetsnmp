@@ -858,20 +858,28 @@ class Session(object):
     def create_users(self, users):
         self._log.debug("create_users: Creating %s users.", len(users))
         for user in users:
-            if user.version != SNMP_VERSION_3:
+            if str(user.version) != str(SNMP_VERSION_3):
+                self._log.info("create_users: user is not v3  %s", user)
                 continue
             try:
                 line = ""
-                if user.engine_id:
-                    line = "-e '{}' ".format(user.engine_id)
-                line += "'{}' '{}' '{}' '{}' '{}'".format(
-                    _escape_char("'", user.username),
-                    _escape_char("'", user.authentication_type),
-                    _escape_char("'", user.authentication_passphrase),
-                    _escape_char("'", user.privacy_protocol),
-                    _escape_char("'", user.privacy_passphrase),
-                )
-                lib.usm_parse_create_usmUser("createUser", line)
+                if user.engine:
+                    line = "-e '{}'".format(user.engine)
+                if user.name:
+                    line += " '{}'".format(
+                        _escape_char("'", user.name),
+                    )
+                    if user.auth:
+                        line += " '{}' '{}'".format(
+                            _escape_char("'", user.auth.protocol.name),
+                            _escape_char("'", user.auth.passphrase),
+                        )
+                        if user.priv:
+                            line += " '{}' '{}'".format(
+                                _escape_char("'", user.priv.protocol.name),
+                                _escape_char("'", user.priv.passphrase),
+                            )
+                lib.usm_parse_create_usmUser("createUser", line.strip())
                 self._log.debug("create_users: created user: %s", user)
             except Exception as e:
                 self._log.debug(
