@@ -1,15 +1,24 @@
+from __future__ import absolute_import
+
 class _Protocol(object):
-    __slots__ = ("__name",)
+    """ """
+
+    __slots__ = ("name",)
 
     def __init__(self, name):
-        self.__name = name
+        self.name = name
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return self.name == other.name
 
     def __str__(self):
-        return self.__name
+        return self.name
 
     def __repr__(self):
         return "<{0.__module__}.{0.__name__} {1}>".format(
-            self.__class__, self.__name
+            self.__class__, self.name
         )
 
 
