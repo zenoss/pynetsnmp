@@ -201,11 +201,7 @@ class AgentProxy(object):
             except AttributeError:
                 ip = address
         return cls(
-            ip,
-            port=port,
-            security=security,
-            timeout=timeout,
-            tries=retries,
+            ip, port=port, security=security, timeout=timeout, tries=retries
         )
 
     def __init__(
@@ -214,7 +210,7 @@ class AgentProxy(object):
         port=161,
         community="public",
         snmpVersion="1",
-        protocol=None,
+        protocol=None,  # no longer used
         allowCache=False,  # no longer used
         timeout=1.5,
         tries=3,
@@ -390,15 +386,14 @@ class AgentProxy(object):
         if self.session is not None:
             self.session.close()
             self.session = None
+            updateReactor()
 
         if self._security:
             agent = asAgent(self.ip, self.port)
             cmdlineargs = self._security.getArguments() + (
                 ("-t", str(self.timeout), "-r", str(self.tries), agent)
             )
-            self.session = netsnmp.Session(
-                cmdLineArgs=cmdlineargs
-            )
+            self.session = netsnmp.Session(cmdLineArgs=cmdlineargs)
         else:
             self.session = netsnmp.Session(
                 version=netsnmp.SNMP_VERSION_MAP.get(

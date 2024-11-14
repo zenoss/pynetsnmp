@@ -1,24 +1,26 @@
 from __future__ import absolute_import
 
+
 class _Protocol(object):
     """ """
 
-    __slots__ = ("name",)
+    __slots__ = ("name", "oid")
 
-    def __init__(self, name):
+    def __init__(self, name, oid):
         self.name = name
+        self.oid = oid
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return NotImplemented
-        return self.name == other.name
+        return self.name == other.name and self.oid == other.oid
 
     def __str__(self):
         return self.name
 
     def __repr__(self):
-        return "<{0.__module__}.{0.__name__} {1}>".format(
-            self.__class__, self.name
+        return "<{0.__module__}.{0.__name__} {1} {2}>".format(
+            self.__class__, self.name, ".".join(str(v) for v in self.oid)
         )
 
 
@@ -53,12 +55,13 @@ class _Protocols(object):
         )
 
 
-AUTH_MD5 = _Protocol("MD5")
-AUTH_SHA = _Protocol("SHA")
-AUTH_SHA_224 = _Protocol("SHA-224")
-AUTH_SHA_256 = _Protocol("SHA-256")
-AUTH_SHA_384 = _Protocol("SHA-384")
-AUTH_SHA_512 = _Protocol("SHA-512")
+AUTH_NOAUTH = _Protocol("NOAUTH", (1, 3, 6, 1, 6, 3, 10, 1, 1, 1))
+AUTH_MD5 = _Protocol("MD5", (1, 3, 6, 1, 6, 3, 10, 1, 1, 2))
+AUTH_SHA = _Protocol("SHA", (1, 3, 6, 1, 6, 3, 10, 1, 1, 3))
+AUTH_SHA_224 = _Protocol("SHA-224", (1, 3, 6, 1, 6, 3, 10, 1, 1, 4))
+AUTH_SHA_256 = _Protocol("SHA-256", (1, 3, 6, 1, 6, 3, 10, 1, 1, 5))
+AUTH_SHA_384 = _Protocol("SHA-384", (1, 3, 6, 1, 6, 3, 10, 1, 1, 6))
+AUTH_SHA_512 = _Protocol("SHA-512", (1, 3, 6, 1, 6, 3, 10, 1, 1, 7))
 
 auth_protocols = _Protocols(
     (
@@ -72,10 +75,11 @@ auth_protocols = _Protocols(
     "authentication",
 )
 
-PRIV_DES = _Protocol("DES")
-PRIV_AES = _Protocol("AES")
-PRIV_AES_192 = _Protocol("AES-192")
-PRIV_AES_256 = _Protocol("AES-256")
+PRIV_NOPRIV = _Protocol("NOPRIV", (1, 3, 6, 1, 6, 3, 10, 1, 2, 1))
+PRIV_DES = _Protocol("DES", (1, 3, 6, 1, 6, 3, 10, 1, 2, 2))
+PRIV_AES = _Protocol("AES", (1, 3, 6, 1, 6, 3, 10, 1, 2, 4))
+PRIV_AES_192 = _Protocol("AES-192", (1, 3, 6, 1, 4, 1, 14832, 1, 3))
+PRIV_AES_256 = _Protocol("AES-256", (1, 3, 6, 1, 4, 1, 14832, 1, 4))
 
 priv_protocols = _Protocols(
     (PRIV_DES, PRIV_AES, PRIV_AES_192, PRIV_AES_256), "privacy"
@@ -85,6 +89,7 @@ del _Protocol
 del _Protocols
 
 __all__ = (
+    "AUTH_NOAUTH",
     "AUTH_MD5",
     "AUTH_SHA",
     "AUTH_SHA_224",
@@ -92,6 +97,7 @@ __all__ = (
     "AUTH_SHA_384",
     "AUTH_SHA_512",
     "auth_protocols",
+    "PRIV_NOPRIV",
     "PRIV_DES",
     "PRIV_AES",
     "PRIV_AES_192",

@@ -59,6 +59,7 @@ from .CONSTANTS import (
     MAX_OID_LEN,
     NETSNMP_CALLBACK_OP_RECEIVED_MESSAGE,
     NETSNMP_CALLBACK_OP_TIMED_OUT,
+    NETSNMP_CALLBACK_OP_SEC_ERROR,
     NETSNMP_DS_LIB_APPTYPE,
     NETSNMP_DS_LIBRARY_ID,
     NETSNMP_LOGHANDLER_CALLBACK,
@@ -658,6 +659,13 @@ def _callback(operation, sp, reqid, pdu, magic):
             sess.callback(pdu.contents)
         elif operation == NETSNMP_CALLBACK_OP_TIMED_OUT:
             sess.timeout(reqid)
+        elif operation == NETSNMP_CALLBACK_OP_SEC_ERROR:
+            _getLogger("callback").error(
+                "peer has rejected security credentials  "
+                "peername=%s security-name=%s",
+                sp.contents.peername,
+                sp.contents.securityName,
+            )
         else:
             _getLogger("callback").error("Unknown operation: %d", operation)
     except Exception as ex:
