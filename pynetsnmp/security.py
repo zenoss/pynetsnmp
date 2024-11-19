@@ -1,7 +1,9 @@
 from __future__ import absolute_import
 
 from .CONSTANTS import SNMP_VERSION_1, SNMP_VERSION_2c, SNMP_VERSION_3
-from .usm import auth_protocols, priv_protocols
+from .usm import AUTH_NOAUTH, auth_protocols, PRIV_NOPRIV, priv_protocols
+
+__all__ = ("Community", "UsmUser", "Authentication", "Privacy")
 
 
 class Community(object):
@@ -10,11 +12,13 @@ class Community(object):
     """
 
     def __init__(self, name, version=SNMP_VERSION_2c):
-        version = _version_map.get(version)
-        if version is None:
-            raise ValueError("Unsupported SNMP version '{}'".format(version))
+        mapped = _version_map.get(version)
+        if mapped is None or mapped == "3":
+            raise ValueError(
+                "SNMP version '{}' not supported for Community".format(version)
+            )
         self.name = name
-        self.version = version
+        self.version = mapped
 
     def getArguments(self):
         community = ("-c", str(self.name)) if self.name else ()
@@ -28,43 +32,44 @@ class UsmUser(object):
 
     def __init__(self, name, auth=None, priv=None, engine=None, context=None):
         self.name = name
-        if not isinstance(auth, (type(None), Authentication)):
-            raise ValueError("invalid authentication protocol")
+        if auth is None:
+            auth = Authentication.new_noauth()
+        if not isinstance(auth, Authentication):
+            raise ValueError("invalid authentication object")
         self.auth = auth
-        if not isinstance(priv, (type(None), Privacy)):
-            raise ValueError("invalid privacy protocol")
+        if priv is None:
+            priv = Privacy.new_nopriv()
+        if not isinstance(priv, Privacy):
+            raise ValueError("invalid privacy object")
         self.priv = priv
         self.engine = engine
         self.context = context
         self.version = _version_map.get(SNMP_VERSION_3)
 
     def getArguments(self):
-        auth = (
+        auth_args = (
             ("-a", self.auth.protocol.name, "-A", self.auth.passphrase)
             if self.auth
             else ()
         )
-        if auth:
+        if auth_args:
             # The privacy arguments are only given if the authentication
             # arguments are also provided.
-            priv = (
+            priv_args = (
                 ("-x", self.priv.protocol.name, "-X", self.priv.passphrase)
                 if self.priv
                 else ()
             )
         else:
-            priv = ()
-        seclevel = (
-            "-l",
-            _sec_level.get((bool(auth), bool(priv)), "noAuthNoPriv"),
-        )
+            priv_args = ()
+        seclevel_arg = ("-l", _sec_level[(bool(self.auth), bool(self.priv))])
 
         return (
             ("-v", self.version)
             + (("-u", self.name) if self.name else ())
-            + seclevel
-            + auth
-            + priv
+            + seclevel_arg
+            + auth_args
+            + priv_args
             + (("-e", self.engine) if self.engine else ())
             + (("-n", self.context) if self.context else ())
         )
@@ -95,8 +100,15 @@ class UsmUser(object):
         )
 
 
-_sec_level = {(True, True): "authPriv", (True, False): "authNoPriv"}
+_sec_level = {
+    (True, True): "authPriv",
+    (True, False): "authNoPriv",
+    (False, False): "noAuthNoPriv",
+}
 _version_map = {
+    "1": "1",
+    "2c": "2c",
+    "3": "3",
     SNMP_VERSION_1: "1",
     SNMP_VERSION_2c: "2c",
     SNMP_VERSION_3: "3",
@@ -113,15 +125,25 @@ class Authentication(object):
 
     __slots__ = ("protocol", "passphrase")
 
+    @classmethod
+    def new_noauth(cls):
+        return cls(None, None)
+
     def __init__(self, protocol, passphrase):
-        if protocol is None:
-            raise ValueError(
-                "Invalid Authentication protocol '{}'".format(protocol)
-            )
-        self.protocol = auth_protocols[protocol]
-        if not passphrase:
-            raise ValueError("Authentication protocol requires a passphrase")
-        self.passphrase = passphrase
+        if (
+            not protocol
+            or protocol is AUTH_NOAUTH
+            or protocol == "AUTH_NOAUTH"
+        ):
+            self.protocol = AUTH_NOAUTH
+            self.passphrase = None
+        else:
+            self.protocol = auth_protocols[protocol]
+            if not passphrase:
+                raise ValueError(
+                    "Authentication protocol requires a passphrase"
+                )
+            self.passphrase = passphrase
 
     def __eq__(self, other):
         if not isinstance(other, Authentication):
@@ -130,6 +152,14 @@ class Authentication(object):
             self.protocol == other.protocol
             and self.passphrase == other.passphrase
         )
+
+    def __nonzero__(self):
+        return self.protocol is not AUTH_NOAUTH
+
+    def __repr__(self):
+        return (
+            "<{0.__module__}.{0.__class__.__name__} protocol={0.protocol}>"
+        ).format(self)
 
     def __str__(self):
         return "{0.__class__.__name__}(protocol={0.protocol})".format(self)
@@ -142,13 +172,23 @@ class Privacy(object):
 
     __slots__ = ("protocol", "passphrase")
 
+    @classmethod
+    def new_nopriv(cls):
+        return cls(None, None)
+
     def __init__(self, protocol, passphrase):
-        if protocol is None:
-            raise ValueError("Invalid Privacy protocol '{}'".format(protocol))
-        self.protocol = priv_protocols[protocol]
-        if not passphrase:
-            raise ValueError("Privacy protocol requires a passphrase")
-        self.passphrase = passphrase
+        if (
+            not protocol
+            or protocol is PRIV_NOPRIV
+            or protocol == "PRIV_NOPRIV"
+        ):
+            self.protocol = PRIV_NOPRIV
+            self.passphrase = None
+        else:
+            self.protocol = priv_protocols[protocol]
+            if not passphrase:
+                raise ValueError("Privacy protocol requires a passphrase")
+            self.passphrase = passphrase
 
     def __eq__(self, other):
         if not isinstance(other, Privacy):
@@ -157,6 +197,14 @@ class Privacy(object):
             self.protocol == other.protocol
             and self.passphrase == other.passphrase
         )
+
+    def __nonzero__(self):
+        return self.protocol is not PRIV_NOPRIV
+
+    def __repr__(self):
+        return (
+            "<{0.__module__}.{0.__class__.__name__} protocol={0.protocol}>"
+        ).format(self)
 
     def __str__(self):
         return "{0.__class__.__name__}(protocol={0.protocol})".format(self)

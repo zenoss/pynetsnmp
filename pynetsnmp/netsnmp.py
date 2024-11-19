@@ -87,6 +87,7 @@ from .CONSTANTS import (
     USM_AUTH_KU_LEN,
     USM_PRIV_KU_LEN,
 )
+from .errors import ArgumentParseError, SnmpTimeoutError
 
 
 def _getLogger(name):
@@ -304,7 +305,7 @@ netsnmp_session._fields_ = (
         ("securityAuthLocalKeyLen", c_size_t),
         ("securityPrivProto", POINTER(oid)),
         ("securityPrivProtoLen", c_size_t),
-        ("securityPrivKey", c_char * USM_PRIV_KU_LEN),
+        ("securityPrivKey", u_char * USM_PRIV_KU_LEN),
         ("securityPrivKeyLen", c_size_t),
         ("securityPrivLocalKey", c_char_p),
         ("securityPrivLocalKeyLen", c_size_t),
@@ -638,14 +639,10 @@ def getResult(pdu, log):
     return result
 
 
-class SnmpError(Exception):
+class NetSnmpError(Exception):
     def __init__(self, why):
         lib.snmp_perror(why)
         Exception.__init__(self, why)
-
-
-class SnmpTimeoutError(Exception):
-    pass
 
 
 sessionMap = {}
@@ -674,14 +671,6 @@ def _callback(operation, sp, reqid, pdu, magic):
 
 
 _callback = netsnmp_callback(_callback)
-
-
-class ArgumentParseError(Exception):
-    pass
-
-
-class TransportError(Exception):
-    pass
 
 
 def _doNothingProc(argc, argv, arg):
@@ -807,7 +796,7 @@ class Session(object):
         ref = byref(sess)
         self.sess = lib.snmp_open(ref)
         if not self.sess:
-            raise SnmpError("snmp_open")
+            raise NetSnmpError("snmp_open")
 
     def awaitTraps(
         self, peername, fileno=-1, pre_parse_callback=None, debug=False
@@ -834,7 +823,7 @@ class Session(object):
         lib.setup_engineID(None, None)
         transport = lib.netsnmp_tdomain_transport(peername, 1, "udp")
         if not transport:
-            raise SnmpError(
+            raise NetSnmpError(
                 "Unable to create transport {peername}".format(
                     peername=peername
                 )
@@ -861,7 +850,7 @@ class Session(object):
         sess.isAuthoritative = SNMP_SESS_UNKNOWNAUTH
         rc = lib.snmp_add(self.sess, transport, pre_parse_callback, None)
         if not rc:
-            raise SnmpError("snmp_add")
+            raise NetSnmpError("snmp_add")
 
     def create_users(self, users):
         self._log.debug("create_users: Creating %s users.", len(users))
@@ -991,7 +980,7 @@ class Session(object):
             lib.snmp_free_pdu(req)
             if snmperr.value == SNMPERR_TIMEOUT:
                 raise SnmpTimeoutError()
-            raise SnmpError(msg_fmt % msg_args)
+            raise NetSnmpError(msg_fmt % msg_args)
 
     def get(self, oids):
         req = self._create_request(SNMP_MSG_GET)
