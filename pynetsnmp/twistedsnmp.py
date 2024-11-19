@@ -8,7 +8,7 @@ from twisted.internet.selectreactor import SelectReactor
 from twisted.internet.error import TimeoutError
 from twisted.python import failure
 
-from . import netsnmp
+from . import netsnmp, oids
 from .CONSTANTS import (
     SNMP_ERR_AUTHORIZATIONERROR,
     SNMP_ERR_BADVALUE,
@@ -31,7 +31,10 @@ from .CONSTANTS import (
     SNMP_ERR_WRONGVALUE,
 )
 from .conversions import asAgent, asOidStr, asOid
+from .errors import SnmpError, SnmpUsmError, get_stats_error
 from .tableretriever import TableRetriever
+
+log = netsnmp._getLogger("agentproxy")
 
 
 class Timer(object):
@@ -131,47 +134,6 @@ def updateReactor():
         timer.callLater = reactor.callLater(t, checkTimeouts)
 
 
-class SnmpNameError(Exception):
-    def __init__(self, oid):
-        Exception.__init__(self, "Bad Name", oid)
-
-
-class SnmpError(Exception):
-    def __init__(self, message, *args, **kwargs):
-        self.message = message
-
-    def __str__(self):
-        return self.message
-
-    def __repr__(self):
-        return self.message
-
-
-class Snmpv3Error(SnmpError):
-    pass
-
-
-USM_STATS_OIDS = {
-    # usmStatsWrongDigests
-    ".1.3.6.1.6.3.15.1.1.5.0": (
-        "check zSnmpAuthType and zSnmpAuthPassword, "
-        "packet did not include the expected digest value"
-    ),
-    # usmStatsUnknownUserNames
-    ".1.3.6.1.6.3.15.1.1.3.0": (
-        "check zSnmpSecurityName, packet referenced an unknown user"
-    ),
-    # usmStatsUnsupportedSecLevels
-    ".1.3.6.1.6.3.15.1.1.1.0": (
-        "packet requested an unknown or unavailable security level"
-    ),
-    # usmStatsDecryptionErrors
-    ".1.3.6.1.6.3.15.1.1.6.0": (
-        "check zSnmpPrivType, packet could not be decrypted"
-    ),
-}
-
-
 class AgentProxy(object):
     """The public methods on AgentProxy (get, walk, getbulk) expect input OIDs
     to be strings, and the result they produce is a dictionary.  The
@@ -229,158 +191,8 @@ class AgentProxy(object):
         self.timeout = timeout
         self.tries = tries
         self.cmdLineArgs = cmdLineArgs
-        self.defers = {}
+        self.defers = _DeferredMap()
         self.session = None
-        self._log = netsnmp._getLogger("agentproxy")
-
-    def _signSafePop(self, d, intkey):
-        """
-        Attempt to pop the item at intkey from dictionary d.
-        Upon failure, try to convert intkey from a signed to an unsigned
-        integer and try to pop again.
-
-        This addresses potential integer rollover issues caused by the fact
-        that netsnmp_pdu.reqid is a c_long and the netsnmp_callback function
-        pointer definition specifies it as a c_int.  See ZEN-4481.
-        """
-        try:
-            return d.pop(intkey)
-        except KeyError as ex:
-            if intkey < 0:
-                self._log.debug("Negative ID for _signSafePop: %s", intkey)
-                # convert to unsigned, try that key
-                uintkey = struct.unpack("I", struct.pack("i", intkey))[0]
-                try:
-                    return d.pop(uintkey)
-                except KeyError:
-                    # Nothing by the unsigned key either,
-                    # throw the original KeyError for consistency
-                    raise ex
-            raise
-
-    def callback(self, pdu):
-        """netsnmp session callback"""
-        response = netsnmp.getResult(pdu, self._log)
-
-        try:
-            d, oids_requested = self._pop_requested_oids(pdu, response)
-        except RuntimeError:
-            return
-
-        result = tuple(
-            (oid, asOidStr(value) if isinstance(value, tuple) else value)
-            for oid, value in response
-        )
-
-        if len(result) == 1 and result[0][0] not in oids_requested:
-            usmStatsOidStr = asOidStr(result[0][0])
-            if usmStatsOidStr in USM_STATS_OIDS:
-                msg = USM_STATS_OIDS.get(usmStatsOidStr)
-                reactor.callLater(
-                    0, d.errback, failure.Failure(Snmpv3Error(msg))
-                )
-                return
-            elif usmStatsOidStr == ".1.3.6.1.6.3.15.1.1.2.0":
-                # we may get a subsequent snmp result with the correct value
-                # if not the timeout will be called at some point
-                self.defers[pdu.reqid] = (d, oids_requested)
-                return
-        if pdu.errstat != SNMP_ERR_NOERROR:
-            pduError = PDU_ERRORS.get(
-                pdu.errstat, "Unknown error (%d)" % pdu.errstat
-            )
-            message = "Packet for %s has error: %s" % (self.ip, pduError)
-            if pdu.errstat in (
-                SNMP_ERR_NOACCESS,
-                SNMP_ERR_RESOURCEUNAVAILABLE,
-                SNMP_ERR_AUTHORIZATIONERROR,
-            ):
-                reactor.callLater(
-                    0, d.errback, failure.Failure(SnmpError(message))
-                )
-                return
-            else:
-                result = []
-                self._log.warning(message + ". OIDS: %s", oids_requested)
-
-        reactor.callLater(0, d.callback, result)
-
-    def _pop_requested_oids(self, pdu, response):
-        try:
-            return self._signSafePop(self.defers, pdu.reqid)
-        except KeyError:
-            # We seem to end up here if we use bad credentials with authPriv.
-            # The only reasonable thing to do is call all of the deferreds with
-            # Snmpv3Errors.
-            for usmStatsOid, _ in response:
-                usmStatsOidStr = asOidStr(usmStatsOid)
-
-                if usmStatsOidStr == ".1.3.6.1.6.3.15.1.1.2.0":
-                    # Some devices use usmStatsNotInTimeWindows as a normal
-                    # part of the SNMPv3 handshake (JIRA-1565).
-                    # net-snmp automatically retries the request with the
-                    # previous request_id and the values for
-                    # msgAuthoritativeEngineBoots and
-                    # msgAuthoritativeEngineTime from this error packet.
-                    self._log.debug(
-                        "Received a usmStatsNotInTimeWindows error. Some "
-                        "devices use usmStatsNotInTimeWindows as a normal "
-                        "part of the SNMPv3 handshake."
-                    )
-                    raise RuntimeError("usmStatsNotInTimeWindows error")
-
-                if usmStatsOidStr == ".1.3.6.1.2.1.1.1.0":
-                    # Some devices (Cisco Nexus/MDS) use sysDescr as a normal
-                    # part of the SNMPv3 handshake (JIRA-7943)
-                    self._log.debug(
-                        "Received sysDescr during handshake. Some devices use "
-                        "sysDescr as a normal part of the SNMPv3 handshake."
-                    )
-                    raise RuntimeError("sysDescr during handshake")
-
-                default_msg = "packet dropped (OID: {0})".format(
-                    usmStatsOidStr
-                )
-                message = USM_STATS_OIDS.get(usmStatsOidStr, default_msg)
-                break
-            else:
-                message = "packet dropped"
-
-            for d in (
-                d for d, rOids in self.defers.itervalues() if not d.called
-            ):
-                reactor.callLater(
-                    0, d.errback, failure.Failure(Snmpv3Error(message))
-                )
-
-            raise RuntimeError(message)
-
-    def timeout_(self, reqid):
-        d = self._signSafePop(self.defers, reqid)[0]
-        reactor.callLater(0, d.errback, failure.Failure(TimeoutError()))
-
-    def _getCmdLineArgs(self):
-        if not self.cmdLineArgs:
-            return ()
-
-        version = str(self.snmpVersion).lstrip("v")
-        if version == "2":
-            version += "c"
-
-        agent = asAgent(self.ip, self.port)
-
-        cmdLineArgs = list(self.cmdLineArgs) + [
-            "-v",
-            str(version),
-            "-c",
-            self.community,
-            "-t",
-            str(self.timeout),
-            "-r",
-            str(self.tries),
-            agent,
-        ]
-        return cmdLineArgs
 
     def open(self):
         if self.session is not None:
@@ -408,7 +220,7 @@ class AgentProxy(object):
             )
 
         self.session.callback = self.callback
-        self.session.timeout = self.timeout_
+        self.session.timeout = self._handle_timeout
         self.session.open()
         updateReactor()
 
@@ -417,6 +229,119 @@ class AgentProxy(object):
             self.session.close()
             self.session = None
         updateReactor()
+
+    def callback(self, pdu):
+        """netsnmp session callback"""
+        response = netsnmp.getResult(pdu, log)
+
+        try:
+            d, oids_requested = self.defers.pop(pdu.reqid)
+        except KeyError:
+            self._handle_missing_request(response)
+            return
+
+        result = tuple(
+            (oid, asOidStr(value) if isinstance(value, tuple) else value)
+            for oid, value in response
+        )
+
+        if len(result) == 1 and result[0][0] not in oids_requested:
+            statsOid = result[0][0]
+            error = get_stats_error(statsOid)
+            if error:
+                reactor.callLater(0, d.errback, failure.Failure(error))
+                return
+            if statsOid == oids.NotInTimeWindow:
+                # we may get a subsequent snmp result with the correct value
+                # if not the timeout will be called at some point
+                self.defers[pdu.reqid] = (d, oids_requested)
+                return
+        if pdu.errstat != SNMP_ERR_NOERROR:
+            pduError = PDU_ERRORS.get(
+                pdu.errstat, "unknown error (%d)" % pdu.errstat
+            )
+            message = "packet for %s has error: %s" % (self.ip, pduError)
+            if pdu.errstat in (
+                SNMP_ERR_NOACCESS,
+                SNMP_ERR_RESOURCEUNAVAILABLE,
+                SNMP_ERR_AUTHORIZATIONERROR,
+            ):
+                reactor.callLater(
+                    0, d.errback, failure.Failure(SnmpError(message))
+                )
+                return
+            else:
+                result = []
+                log.warning(message + ". OIDS: %s", oids_requested)
+
+        reactor.callLater(0, d.callback, result)
+
+    def _handle_missing_request(self, response):
+        usmStatsOid, _ = next(iter(response), (None, None))
+
+        if usmStatsOid == oids.NotInTimeWindow:
+            # Some devices use usmStatsNotInTimeWindows as a normal part of
+            # the SNMPv3 handshake (JIRA-1565).  net-snmp automatically
+            # retries the request with the previous request_id and the
+            # values for msgAuthoritativeEngineBoots and
+            # msgAuthoritativeEngineTime from this error packet.
+            log.debug(
+                "Received a usmStatsNotInTimeWindows error. Some "
+                "devices use usmStatsNotInTimeWindows as a normal "
+                "part of the SNMPv3 handshake."
+            )
+            return
+
+        if usmStatsOid == oids.SysDescr:
+            # Some devices (Cisco Nexus/MDS) use sysDescr as a normal
+            # part of the SNMPv3 handshake (JIRA-7943)
+            log.debug(
+                "Received sysDescr during handshake. Some devices use "
+                "sysDescr as a normal part of the SNMPv3 handshake."
+            )
+            return
+
+        if usmStatsOid is not None:
+            error = get_stats_error(usmStatsOid)
+            if not error:
+                error = SnmpUsmError(
+                    "packet dropped (OID: {0})".format(asOidStr(usmStatsOid))
+                )
+        else:
+            error = SnmpUsmError("packet dropped")
+
+        for d in (d for d, _ in self.defers.itervalues() if not d.called):
+            reactor.callLater(0, d.errback, failure.Failure(error))
+
+    def _handle_timeout(self, reqid):
+        try:
+            d = self.defers.pop(reqid)[0]
+            reactor.callLater(0, d.errback, failure.Failure(TimeoutError()))
+        except KeyError:
+            log.warning("handled timeout for unknown request")
+
+    def _getCmdLineArgs(self):
+        if not self.cmdLineArgs:
+            return ()
+
+        version = str(self.snmpVersion).lstrip("v")
+        if version == "2":
+            version += "c"
+
+        agent = asAgent(self.ip, self.port)
+
+        cmdLineArgs = list(self.cmdLineArgs) + [
+            "-v",
+            str(version),
+            "-c",
+            self.community,
+            "-t",
+            str(self.timeout),
+            "-r",
+            str(self.tries),
+            agent,
+        ]
+        return cmdLineArgs
 
     def _get(self, oids, timeout=None, retryCount=None):
         d = defer.Deferred()
@@ -488,3 +413,25 @@ class _FakeProtocol:
 
 
 snmpprotocol = _FakeProtocol()
+
+
+class _DeferredMap(dict):
+    """
+    Wrap the dict type to add extra behavior.
+    """
+
+    def pop(self, key):
+        """
+        Attempt to pop the item at key from the dictionary.
+        """
+        # Check for negative key to address potential integer rollover issues
+        # caused by the fact that netsnmp_pdu.reqid is a c_long and the
+        # netsnmp_callback function pointer definition specifies it as a
+        # c_int.  See ZEN-4481.
+        if key not in self and key < 0:
+            log.debug("try negative ID for deferred map: %s", key)
+            # convert to unsigned, try that key
+            uintkey = struct.unpack("I", struct.pack("i", key))[0]
+            if uintkey in self:
+                key = uintkey
+        return super(_DeferredMap, self).pop(key)

@@ -38,6 +38,8 @@ class _Protocols(object):
         return iter(self.__protocols)
 
     def __contains__(self, proto):
+        if not proto:
+            proto = self.__noargs
         if proto not in self.__protocols:
             return any(str(p) == proto for p in self.__protocols)
         return True
@@ -46,7 +48,9 @@ class _Protocols(object):
         name = str(name)
         proto = next((p for p in self.__protocols if str(p) == name), None)
         if proto is None:
-            raise KeyError("No {} protocol '{}'".format(self.__kind, name))
+            raise KeyError(
+                "unknown {} protocol '{}'".format(self.__kind, name)
+            )
         return proto
 
     def __repr__(self):
@@ -65,6 +69,7 @@ AUTH_SHA_512 = _Protocol("SHA-512", (1, 3, 6, 1, 6, 3, 10, 1, 1, 7))
 
 auth_protocols = _Protocols(
     (
+        AUTH_NOAUTH,
         AUTH_MD5,
         AUTH_SHA,
         AUTH_SHA_224,
@@ -82,25 +87,25 @@ PRIV_AES_192 = _Protocol("AES-192", (1, 3, 6, 1, 4, 1, 14832, 1, 3))
 PRIV_AES_256 = _Protocol("AES-256", (1, 3, 6, 1, 4, 1, 14832, 1, 4))
 
 priv_protocols = _Protocols(
-    (PRIV_DES, PRIV_AES, PRIV_AES_192, PRIV_AES_256), "privacy"
+    (PRIV_NOPRIV, PRIV_DES, PRIV_AES, PRIV_AES_192, PRIV_AES_256), "privacy"
 )
 
 del _Protocol
 del _Protocols
 
 __all__ = (
-    "AUTH_NOAUTH",
     "AUTH_MD5",
+    "AUTH_NOAUTH",
+    "auth_protocols",
     "AUTH_SHA",
     "AUTH_SHA_224",
     "AUTH_SHA_256",
     "AUTH_SHA_384",
     "AUTH_SHA_512",
-    "auth_protocols",
-    "PRIV_NOPRIV",
-    "PRIV_DES",
     "PRIV_AES",
     "PRIV_AES_192",
     "PRIV_AES_256",
+    "PRIV_DES",
+    "PRIV_NOPRIV",
     "priv_protocols",
 )

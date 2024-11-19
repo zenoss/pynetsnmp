@@ -25,11 +25,14 @@ clean:
 	rm -rf *.pyc dist build pynetsnmp.egg-info
 
 .PHONY: test
-HOST ?= 127.0.0.1
 test:
-	docker run --rm -v $(PWD):/mnt -w /mnt $(TAG) \
-    bash -c "python setup.py bdist_wheel \
-    && pip install dist/pynetsnmp*py2-none-any.whl ipaddr Twisted==20.3.0 \
-    && cd test \
-    && python test_runner.py --host $(HOST) \
-    && chown -R $(UID):$(GID) /mnt" ;
+	@$(DOCKER_COMMAND) bash -c "pip --no-python-version-warning install -q .; cd tests; python -m unittest discover"
+
+# HOST ?= 127.0.0.1
+# test:
+# 	docker run --rm -v $(PWD):/mnt -w /mnt $(TAG) \
+#     bash -c "python setup.py bdist_wheel \
+#     && pip install dist/pynetsnmp*py2-none-any.whl ipaddr Twisted==20.3.0 \
+#     && cd test \
+#     && python test_runner.py --host $(HOST) \
+#     && chown -R $(UID):$(GID) /mnt" ;
