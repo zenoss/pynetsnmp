@@ -92,20 +92,3 @@ priv_protocols = _Protocols(
 
 del _Protocol
 del _Protocols
-
-__all__ = (
-    "AUTH_MD5",
-    "AUTH_NOAUTH",
-    "auth_protocols",
-    "AUTH_SHA",
-    "AUTH_SHA_224",
-    "AUTH_SHA_256",
-    "AUTH_SHA_384",
-    "AUTH_SHA_512",
-    "PRIV_AES",
-    "PRIV_AES_192",
-    "PRIV_AES_256",
-    "PRIV_DES",
-    "PRIV_NOPRIV",
-    "priv_protocols",
-)
