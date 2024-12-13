@@ -12,7 +12,6 @@ from ctypes import (
     Structure,
     Union,
     byref,
-    c_byte,
     c_char,
     c_char_p,
     c_double,
@@ -60,6 +59,7 @@ from .CONSTANTS import (
     MAX_OID_LEN,
     NETSNMP_CALLBACK_OP_RECEIVED_MESSAGE,
     NETSNMP_CALLBACK_OP_TIMED_OUT,
+    NETSNMP_CALLBACK_OP_SEC_ERROR,
     NETSNMP_DS_LIB_APPTYPE,
     NETSNMP_DS_LIBRARY_ID,
     NETSNMP_LOGHANDLER_CALLBACK,
@@ -87,6 +87,7 @@ from .CONSTANTS import (
     USM_AUTH_KU_LEN,
     USM_PRIV_KU_LEN,
 )
+from .errors import ArgumentParseError, SnmpTimeoutError
 
 
 def _getLogger(name):
@@ -97,12 +98,12 @@ if sys.platform.find("free") > -1:
     find_library_orig = find_library
 
     def find_library(name):
-        for name in [
+        for filename in [
             "/usr/lib/lib%s.so" % name,
             "/usr/local/lib/lib%s.so" % name,
         ]:
-            if os.path.exists(name):
-                return name
+            if os.path.exists(filename):
+                return filename
         return find_library_orig(name)
 
 
@@ -122,8 +123,13 @@ def find_library(name):
     return find_library_orig(name)
 
 
-c_int_p = c_void_p
-authenticator = CFUNCTYPE(c_char_p, c_int_p, c_char_p, c_int)
+oid = c_long
+size_t = c_size_t
+u_char = c_ubyte
+u_char_p = POINTER(c_ubyte)
+u_int = c_uint
+u_long = c_ulong
+u_short = c_ushort
 
 try:
     # needed by newer netsnmp's
@@ -131,18 +137,17 @@ try:
 except Exception:
     import warnings
 
-    warnings.warn("Unable to load crypto library")
+    warnings.warn("Unable to load crypto library", stacklevel=1)
 
 lib = CDLL(find_library("netsnmp"), RTLD_GLOBAL)
 lib.netsnmp_get_version.restype = c_char_p
 
-oid = c_long
-u_long = c_ulong
-u_short = c_ushort
-u_char_p = c_char_p
-u_int = c_uint
-size_t = c_size_t
-u_char = c_byte
+version = lib.netsnmp_get_version()
+float_version = float(".".join(version.split(".")[:2]))
+_netsnmp_str_version = tuple(str(v) for v in version.split("."))
+
+if float_version < 5.099:
+    raise ImportError("netsnmp version 5.1 or greater is required")
 
 
 class netsnmp_session(Structure):
@@ -173,7 +178,13 @@ class netsnmp_trap_stats(Structure):
     ]
 
 
-# include/net-snmp/types.h -> int (*netsnmp_callback) (int, netsnmp_session *, int, netsnmp_pdu *, void *);
+authenticator = CFUNCTYPE(
+    u_char_p, u_char_p, POINTER(c_size_t), u_char_p, c_size_t
+)
+
+
+# include/net-snmp/types.h
+# int (*netsnmp_callback) (int, netsnmp_session *, int, netsnmp_pdu *, void *);
 # the first argument is the return type in CFUNCTYPE notation.
 netsnmp_callback = CFUNCTYPE(
     c_int,
@@ -187,9 +198,6 @@ netsnmp_callback = CFUNCTYPE(
 # int (*proc)(int, char * const *, int)
 arg_parse_proc = CFUNCTYPE(c_int, POINTER(c_char_p), c_int)
 
-version = lib.netsnmp_get_version()
-float_version = float(".".join(version.split(".")[:2]))
-_netsnmp_str_version = tuple(str(v) for v in version.split("."))
 localname = []
 paramName = []
 transportConfig = []
@@ -203,8 +211,6 @@ fSetupSession = []
 identifier = []
 fGetTaddr = []
 
-if float_version < 5.099:
-    raise ImportError("netsnmp version 5.1 or greater is required")
 if float_version > 5.199:
     localname = [("localname", c_char_p)]
     if float_version > 5.299:
@@ -224,11 +230,13 @@ if _netsnmp_str_version >= ("5", "6"):
     transportConfig = [
         ("transport_configuration", POINTER(netsnmp_container_s))
     ]
-if _netsnmp_str_version >= ('5','8'):
-    # Version >= 5.8 broke binary compatibility, adding the trap_stats member to the netsnmp_session struct
-    trapStats = [('trap_stats', POINTER(netsnmp_trap_stats))]
-    # Version >= 5.8 broke binary compatibility, adding the msgMaxSize member to the snmp_pdu struct
-    msgMaxSize = [('msgMaxSize', c_long)]
+if _netsnmp_str_version >= ("5", "8"):
+    # Version >= 5.8 broke binary compatibility, adding the trap_stats
+    # member to the netsnmp_session struct
+    trapStats = [("trap_stats", POINTER(netsnmp_trap_stats))]
+    # Version >= 5.8 broke binary compatibility, adding the msgMaxSize
+    # member to the snmp_pdu struct
+    msgMaxSize = [("msgMaxSize", c_long)]
     baseTransport = [("base_transport", POINTER(netsnmp_transport))]
     fOpen = [("f_open", c_void_p)]
     fConfig = [("f_config", c_void_p)]
@@ -236,7 +244,8 @@ if _netsnmp_str_version >= ('5','8'):
     fSetupSession = [("f_setup_session", c_void_p)]
     identifier = [("identifier", POINTER(u_char_p))]
     fGetTaddr = [("f_get_taddr", c_void_p)]
-    # Version >= 5.8 broke binary compatibility, doubling the size of these constants used for struct sizes
+    # Version >= 5.8 broke binary compatibility, doubling the size of these
+    # constants used for struct sizes
     USM_AUTH_KU_LEN = 64
     USM_PRIV_KU_LEN = 64
 
@@ -262,7 +271,7 @@ netsnmp_session._fields_ = (
         ("subsession", POINTER(netsnmp_session)),
         ("next", POINTER(netsnmp_session)),
         ("peername", c_char_p),
-        ("remote_port", u_short),
+        ("remote_port", u_short),  # deprecated
     ]
     + localname
     + [
@@ -296,14 +305,15 @@ netsnmp_session._fields_ = (
         ("securityAuthLocalKeyLen", c_size_t),
         ("securityPrivProto", POINTER(oid)),
         ("securityPrivProtoLen", c_size_t),
-        ("securityPrivKey", c_char * USM_PRIV_KU_LEN),
+        ("securityPrivKey", u_char * USM_PRIV_KU_LEN),
         ("securityPrivKeyLen", c_size_t),
         ("securityPrivLocalKey", c_char_p),
         ("securityPrivLocalKeyLen", c_size_t),
         ("securityModel", c_int),
         ("securityLevel", c_int),
     ]
-    + paramName + trapStats
+    + paramName
+    + trapStats
     + [
         ("securityInfo", c_void_p),
     ]
@@ -323,6 +333,7 @@ class counter64(Structure):
         ("low", c_ulong),
     ]
 
+
 # include/net-snmp/types.h
 class netsnmp_vardata(Union):
     _fields_ = [
@@ -339,6 +350,7 @@ class netsnmp_vardata(Union):
 class netsnmp_variable_list(Structure):
     pass
 
+
 # include/net-snmp/types.h
 netsnmp_variable_list._fields_ = [
     ("next_variable", POINTER(netsnmp_variable_list)),
@@ -354,45 +366,49 @@ netsnmp_variable_list._fields_ = [
     ("index", c_int),
 ]
 # include/net-snmp/types.h
-netsnmp_pdu._fields_ = [
-    ("version", c_long),
-    ("command", c_int),
-    ("reqid", c_long),
-    ("msgid", c_long),
-    ("transid", c_long),
-    ("sessid", c_long),
-    ("errstat", c_long),
-    ("errindex", c_long),
-    ("time", c_ulong),
-    ("flags", c_ulong),
-    ("securityModel", c_int),
-    ("securityLevel", c_int),
-    ("msgParseModel", c_int),
-    ] + msgMaxSize + [
-    ("transport_data", c_void_p),
-    ("transport_data_length", c_int),
-    ("tDomain", POINTER(oid)),
-    ("tDomainLen", c_size_t),
-    ("variables", POINTER(netsnmp_variable_list)),
-    ("community", c_char_p),
-    ("community_len", c_size_t),
-    ("enterprise", POINTER(oid)),
-    ("enterprise_length", c_size_t),
-    ("trap_type", c_long),
-    ("specific_type", c_long),
-    ("agent_addr", c_ubyte * 4),
-    ("contextEngineID", c_char_p),
-    ("contextEngineIDLen", c_size_t),
-    ("contextName", c_char_p),
-    ("contextNameLen", c_size_t),
-    ("securityEngineID", c_char_p),
-    ("securityEngineIDLen", c_size_t),
-    ("securityName", c_char_p),
-    ("securityNameLen", c_size_t),
-    ("priority", c_int),
-    ("range_subid", c_int),
-    ("securityStateRef", c_void_p),
-]
+netsnmp_pdu._fields_ = (
+    [
+        ("version", c_long),
+        ("command", c_int),
+        ("reqid", c_long),
+        ("msgid", c_long),
+        ("transid", c_long),
+        ("sessid", c_long),
+        ("errstat", c_long),
+        ("errindex", c_long),
+        ("time", c_ulong),
+        ("flags", c_ulong),
+        ("securityModel", c_int),
+        ("securityLevel", c_int),
+        ("msgParseModel", c_int),
+    ]
+    + msgMaxSize
+    + [
+        ("transport_data", c_void_p),
+        ("transport_data_length", c_int),
+        ("tDomain", POINTER(oid)),
+        ("tDomainLen", c_size_t),
+        ("variables", POINTER(netsnmp_variable_list)),
+        ("community", c_char_p),
+        ("community_len", c_size_t),
+        ("enterprise", POINTER(oid)),
+        ("enterprise_length", c_size_t),
+        ("trap_type", c_long),
+        ("specific_type", c_long),
+        ("agent_addr", c_ubyte * 4),
+        ("contextEngineID", c_char_p),
+        ("contextEngineIDLen", c_size_t),
+        ("contextName", c_char_p),
+        ("contextNameLen", c_size_t),
+        ("securityEngineID", c_char_p),
+        ("securityEngineIDLen", c_size_t),
+        ("securityName", c_char_p),
+        ("securityNameLen", c_size_t),
+        ("priority", c_int),
+        ("range_subid", c_int),
+        ("securityStateRef", c_void_p),
+    ]
+)
 
 netsnmp_pdu_p = POINTER(netsnmp_pdu)
 
@@ -404,7 +420,9 @@ class netsnmp_log_message(Structure):
 
 netsnmp_log_message_p = POINTER(netsnmp_log_message)
 
-# callback.h typedef int (SNMPCallback) (int majorID, int minorID, void *serverarg, void *clientarg);
+# callback.h
+# typedef int (SNMPCallback) (
+#     int majorID, int minorID, void *serverarg, void *clientarg);
 log_callback = CFUNCTYPE(c_int, c_int, netsnmp_log_message_p, c_void_p)
 
 # include/net-snmp/library/snmp_logging.h
@@ -423,20 +441,23 @@ PRIORITY_MAP = {
     LOG_DEBUG: logging.DEBUG,
 }
 
+
 # snmplib/snmp_logging.c -> free(logh);
-# include/net-snmp/output_api.h -> int  snmp_log( int priority, const char *format, ...)
+# include/net-snmp/output_api.h
+# int snmp_log(int priority, const char *format, ...);
 # in net-snmp -> snmp_log(LOG_ERR|WARNING|INFO|DEBUG, msg)
 def netsnmp_logger(a, b, msg):
     msg = cast(msg, netsnmp_log_message_p)
     priority = PRIORITY_MAP.get(msg.contents.priority, logging.DEBUG)
-    _getLogger("netsnmp").log(priority, str(msg.contents.msg).strip())
+    _getLogger("libnetsnmp").log(priority, str(msg.contents.msg).strip())
     return 0
 
 
 netsnmp_logger = log_callback(netsnmp_logger)
 
-# include/net-snmp/library/callback.h ->
-# int snmp_register_callback(int major, int minor, SNMPCallback * new_callback, void *arg);
+# include/net-snmp/library/callback.h
+# int snmp_register_callback(
+#     int major, int minor, SNMPCallback * new_callback, void *arg);
 lib.snmp_register_callback(
     SNMP_CALLBACK_LIBRARY, SNMP_CALLBACK_LOGGING, netsnmp_logger, 0
 )
@@ -445,39 +466,55 @@ lib.snmp_pdu_create.restype = netsnmp_pdu_p
 lib.snmp_open.restype = POINTER(netsnmp_session)
 
 # include/net-snmp/library/snmp_transport.h
-netsnmp_transport._fields_ = [
-    ("domain", POINTER(oid)),
-    ("domain_length", c_int),
-    ("local", u_char_p),
-    ("local_length", c_int),
-    ("remote", u_char_p),
-    ("remote_length", c_int),
-    ("sock", c_int),
-    ("flags", u_int),
-    ("data", c_void_p),
-    ("data_length", c_int),
-    ("msgMaxSize", c_size_t),
-    ] + baseTransport + [
-    ("f_recv", c_void_p),
-    ("f_send", c_void_p),
-    ("f_close", c_void_p),
-    ] + fOpen + [
-    ("f_accept", c_void_p),
-    ("f_fmtaddr", c_void_p),
-] + fCopy + fCopy + fSetupSession + identifier + fGetTaddr
+netsnmp_transport._fields_ = (
+    [
+        ("domain", POINTER(oid)),
+        ("domain_length", c_int),
+        ("local", u_char_p),
+        ("local_length", c_int),
+        ("remote", u_char_p),
+        ("remote_length", c_int),
+        ("sock", c_int),
+        ("flags", u_int),
+        ("data", c_void_p),
+        ("data_length", c_int),
+        ("msgMaxSize", c_size_t),
+    ]
+    + baseTransport
+    + [
+        ("f_recv", c_void_p),
+        ("f_send", c_void_p),
+        ("f_close", c_void_p),
+    ]
+    + fOpen
+    + [
+        ("f_accept", c_void_p),
+        ("f_fmtaddr", c_void_p),
+    ]
+    + fCopy
+    + fCopy
+    + fSetupSession
+    + identifier
+    + fGetTaddr
+)
 
-# include/net-snmp/library/snmp_transport.h ->
-# netsnmp_transport *netsnmp_tdomain_transport( const char *str, int local, const char *default_domain);
+# include/net-snmp/library/snmp_transport.h
+# netsnmp_transport *netsnmp_tdomain_transport(
+#     const char *str, int local, const char *default_domain);
 lib.netsnmp_tdomain_transport.restype = POINTER(netsnmp_transport)
 
-# include/net-snmp/library/snmp_api.h -> netsnmp_session *snmp_add(
-#       netsnmp_session *, struct netsnmp_transport_s *,
-#       int (*fpre_parse) (netsnmp_session *, struct netsnmp_transport_s *, void *, int),
-#       int (*fpost_parse) (netsnmp_session *, netsnmp_pdu *, int)
-#     );
+# include/net-snmp/library/snmp_api.h
+# netsnmp_session *snmp_add(
+#     netsnmp_session *,
+#     struct netsnmp_transport_s *,
+#     int (*fpre_parse) (
+#         netsnmp_session *, struct netsnmp_transport_s *, void *, int),
+#     int (*fpost_parse) (netsnmp_session *, netsnmp_pdu *, int)
+# );
 lib.snmp_add.restype = POINTER(netsnmp_session)
 
-# include/net-snmp/session_api.h -> int snmp_add_var(netsnmp_pdu *, const oid *, size_t, char, const char *);
+# include/net-snmp/session_api.h
+# int snmp_add_var(netsnmp_pdu *, const oid *, size_t, char, const char *);
 lib.snmp_add_var.argtypes = [
     netsnmp_pdu_p,
     POINTER(oid),
@@ -488,7 +525,8 @@ lib.snmp_add_var.argtypes = [
 
 lib.get_uptime.restype = c_long
 
-# include/net-snmp/session_api.h -> int snmp_send(netsnmp_session *, netsnmp_pdu *);
+# include/net-snmp/session_api.h
+# int snmp_send(netsnmp_session *, netsnmp_pdu *);
 lib.snmp_send.argtypes = (POINTER(netsnmp_session), netsnmp_pdu_p)
 lib.snmp_send.restype = c_int
 
@@ -551,15 +589,11 @@ def decodeString(pdu):
     return ""
 
 
-_valueToConstant = dict(
-    [
-        (chr(getattr(CONSTANTS, k)), k)
-        for k in CONSTANTS.__dict__.keys()
-        if isinstance(getattr(CONSTANTS, k), int)
-        and getattr(CONSTANTS, k) >= 0
-        and getattr(CONSTANTS, k) < 256
-    ]
-)
+_valueToConstant = {
+    chr(_v): _k
+    for _k, _v in CONSTANTS.__dict__.items()
+    if isinstance(_v, int) and (0 <= _v < 256)
+}
 
 
 decoder = {
@@ -605,14 +639,10 @@ def getResult(pdu, log):
     return result
 
 
-class SnmpError(Exception):
+class NetSnmpError(Exception):
     def __init__(self, why):
         lib.snmp_perror(why)
         Exception.__init__(self, why)
-
-
-class SnmpTimeoutError(Exception):
-    pass
 
 
 sessionMap = {}
@@ -626,6 +656,13 @@ def _callback(operation, sp, reqid, pdu, magic):
             sess.callback(pdu.contents)
         elif operation == NETSNMP_CALLBACK_OP_TIMED_OUT:
             sess.timeout(reqid)
+        elif operation == NETSNMP_CALLBACK_OP_SEC_ERROR:
+            _getLogger("callback").error(
+                "peer has rejected security credentials  "
+                "peername=%s security-name=%s",
+                sp.contents.peername,
+                sp.contents.securityName,
+            )
         else:
             _getLogger("callback").error("Unknown operation: %d", operation)
     except Exception as ex:
@@ -636,14 +673,6 @@ def _callback(operation, sp, reqid, pdu, magic):
 _callback = netsnmp_callback(_callback)
 
 
-class ArgumentParseError(Exception):
-    pass
-
-
-class TransportError(Exception):
-    pass
-
-
 def _doNothingProc(argc, argv, arg):
     return 0
 
@@ -652,9 +681,7 @@ _doNothingProc = arg_parse_proc(_doNothingProc)
 
 
 def parse_args(args, session):
-    args = [
-        sys.argv[0],
-    ] + args
+    args = [sys.argv[0]] + args
     argc = len(args)
     argv = (c_char_p * argc)()
     for i in range(argc):
@@ -662,7 +689,9 @@ def parse_args(args, session):
         argv[i] = create_string_buffer(args[i]).raw
     # WARNING: Usage of snmp_parse_args call causes memory leak.
     if lib.snmp_parse_args(argc, argv, session, "", _doNothingProc) < 0:
-        raise ArgumentParseError("Unable to parse arguments", " ".join(argv))
+        raise ArgumentParseError(
+            "Unable to parse arguments  arguments='{}'".format(" ".join(argv))
+        )
     # keep a reference to the args for as long as sess is alive
     return argv
 
@@ -674,56 +703,87 @@ def initialize_session(sess, cmdLineArgs, kw):
     args = None
     kw = kw.copy()
     if cmdLineArgs:
-        cmdLine = [x for x in cmdLineArgs]
-        if isinstance(cmdLine[0], tuple):
-            result = []
-            for opt, val in cmdLine:
-                result.append(opt)
-                result.append(val)
-            cmdLine = result
-        if kw.get("peername"):
-            cmdLine.append(kw["peername"])
-            del kw["peername"]
-        args = parse_args(cmdLine, byref(sess))
+        args = _init_from_args(sess, cmdLineArgs, kw)
     else:
         lib.snmp_sess_init(byref(sess))
     for attr, value in kw.items():
         pv = getattr(sess, attr, _NoAttribute)
         if pv is _NoAttribute:
             continue  # Don't set invalid properties
-        if attr == "timeout":
-            # -1 means the property hasn't been set
-            if pv == -1:
-                # Converts seconds to microseconds
-                setattr(sess, attr, value * 1000000)
-        elif attr == "version":
-            # -1 means the property hasn't been set
-            if pv == -1:
-                setattr(sess, attr, value)
-        elif attr == "community":
-            # None means the property hasn't been set
-            if pv is None:
-                setattr(sess, attr, value)
-                setattr(sess, "community_len", len(value))
-        elif attr == "community_len":
-            # Setting community_len on its own is a segfault waiting to happen
-            pass
-        else:
-            setattr(sess, attr, value)
+        _update_session(attr, value, pv, sess)
     return args
 
 
-class Session(object):
+def _init_from_args(sess, cmdLineArgs, kw):
+    cmdLine = list(cmdLineArgs)
+    if isinstance(cmdLine[0], tuple):
+        result = []
+        for opt, val in cmdLine:
+            result.append(opt)
+            result.append(val)
+        cmdLine = result
+    if kw.get("peername"):
+        cmdLine.append(kw["peername"])
+        del kw["peername"]
+    return parse_args(cmdLine, byref(sess))
 
+
+def _update_session(attr, value, pv, sess):
+    if attr == "timeout":
+        # -1 means 'timeout' hasn't been set
+        if pv == -1:
+            # Converts seconds to microseconds
+            setattr(sess, attr, value * 1000000)
+    elif attr == "version":
+        # -1 means 'version' hasn't been set
+        if pv == -1:
+            setattr(sess, attr, value)
+    elif attr == "community":
+        # None means 'community' hasn't been set
+        if pv is None:
+            setattr(sess, attr, value)
+            # Set 'community_len' at the same time because it's
+            # related to the value for the 'community' property.
+            sess.community_len = len(value)
+    elif attr == "community_len":
+        # Do nothing to avoid setting a 'community_len' value when no
+        # value has been set for 'community', otherwise, a segmentation
+        # fault can occur.
+        pass
+    else:
+        setattr(sess, attr, value)
+
+
+class Session(object):
     cb = None
 
-    def __init__(self, cmdLineArgs=(), **kw):
+    def __init__(self, cmdLineArgs=(), freeEtimelist=True, **kw):
         self.cmdLineArgs = cmdLineArgs
+        self.freeEtimelist = freeEtimelist
         self.kw = kw
         self.sess = None
         self.args = None
         self._data = None  # ref to _CallbackData object
         self._log = _getLogger("session")
+
+    def _snmp_send(self, session, pdu):
+        """
+        Allows execution of free_etimelist() after each snmp_send() call.
+
+        Executes lib.free_etimelist() after each lib.snmp_send() call if the
+        `freeEtimelist` attribute is set, or re-calls lib.snmp_send()
+        otherwise.  This frees all the memory used by entries in the
+        etimelist inside the net-snmp library, allowing the processing of
+        devices with duplicated engineID.
+
+        Note: This feature is not supported by RFC.
+        """
+
+        try:
+            return lib.snmp_send(session, pdu)
+        finally:
+            if self.freeEtimelist:
+                lib.free_etimelist()
 
     def open(self):
         sess = netsnmp_session()
@@ -736,7 +796,7 @@ class Session(object):
         ref = byref(sess)
         self.sess = lib.snmp_open(ref)
         if not self.sess:
-            raise SnmpError("snmp_open")
+            raise NetSnmpError("snmp_open")
 
     def awaitTraps(
         self, peername, fileno=-1, pre_parse_callback=None, debug=False
@@ -745,7 +805,6 @@ class Session(object):
             lib.netsnmp_ds_set_string(
                 NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_APPTYPE, "pynetsnmp"
             )
-        lib.init_usm()
         if debug:
             lib.debug_register_tokens("snmp_parse")  # or "ALL" for everything
             lib.snmp_set_do_debugging(1)
@@ -764,15 +823,15 @@ class Session(object):
         lib.setup_engineID(None, None)
         transport = lib.netsnmp_tdomain_transport(peername, 1, "udp")
         if not transport:
-            raise SnmpError(
+            raise NetSnmpError(
                 "Unable to create transport {peername}".format(
                     peername=peername
                 )
             )
         if fileno >= 0:
             os.dup2(fileno, transport.contents.sock)
-        sess = netsnmp_session()
 
+        sess = netsnmp_session()
         self.sess = pointer(sess)
         lib.snmp_sess_init(self.sess)
         sess.peername = SNMP_DEFAULT_PEERNAME
@@ -791,34 +850,41 @@ class Session(object):
         sess.isAuthoritative = SNMP_SESS_UNKNOWNAUTH
         rc = lib.snmp_add(self.sess, transport, pre_parse_callback, None)
         if not rc:
-            raise SnmpError("snmp_add")
+            raise NetSnmpError("snmp_add")
 
     def create_users(self, users):
         self._log.debug("create_users: Creating %s users.", len(users))
         for user in users:
-            if user.version == 3:
-                try:
-                    line = ""
-                    if user.engine_id:
-                        line = "-e {} ".format(user.engine_id)
-                    line += " ".join(
-                        [
-                            user.username,
-                            user.authentication_type,  # MD5 or SHA
-                            user.authentication_passphrase,
-                            user.privacy_protocol,  # DES or AES
-                            user.privacy_passphrase,
-                        ]
+            if str(user.version) != str(SNMP_VERSION_3):
+                self._log.info("create_users: user is not v3  %s", user)
+                continue
+            try:
+                line = ""
+                if user.engine:
+                    line = "-e '{}'".format(user.engine)
+                if user.name:
+                    line += " '{}'".format(
+                        _escape_char("'", user.name),
                     )
-                    lib.usm_parse_create_usmUser("createUser", line)
-                    self._log.debug("create_users: created user: %s", user)
-                except StandardError as e:
-                    self._log.debug(
-                        "create_users: could not create user: %s: (%s: %s)",
-                        user,
-                        e.__class__.__name__,
-                        e,
-                    )
+                    if user.auth:
+                        line += " '{}' '{}'".format(
+                            _escape_char("'", user.auth.protocol.name),
+                            _escape_char("'", user.auth.passphrase),
+                        )
+                        if user.priv:
+                            line += " '{}' '{}'".format(
+                                _escape_char("'", user.priv.protocol.name),
+                                _escape_char("'", user.priv.passphrase),
+                            )
+                lib.usm_parse_create_usmUser("createUser", line.strip())
+                self._log.debug("create_users: created user: %s", user)
+            except Exception as e:
+                self._log.debug(
+                    "create_users: could not create user: %s: (%s: %s)",
+                    user,
+                    e.__class__.__name__,
+                    e,
+                )
 
     def sendTrap(self, trapoid, varbinds=None):
         if "-v1" in self.cmdLineArgs:
@@ -857,7 +923,7 @@ class Session(object):
                 n = strToOid(n)
                 lib.snmp_add_var(pdu, n, len(n), t, v)
 
-        lib.snmp_send(self.sess, pdu)
+        self._snmp_send(self.sess, pdu)
 
     def close(self):
         if self.sess is not None:
@@ -914,14 +980,14 @@ class Session(object):
             lib.snmp_free_pdu(req)
             if snmperr.value == SNMPERR_TIMEOUT:
                 raise SnmpTimeoutError()
-            raise SnmpError(msg_fmt % msg_args)
+            raise NetSnmpError(msg_fmt % msg_args)
 
     def get(self, oids):
         req = self._create_request(SNMP_MSG_GET)
         for oid in oids:
             oid = mkoid(oid)
             lib.snmp_add_null_var(req, oid, len(oid))
-        send_status = lib.snmp_send(self.sess, req)
+        send_status = self._snmp_send(self.sess, req)
         self._handle_send_status(req, send_status, "get")
         return req.contents.reqid
 
@@ -933,7 +999,7 @@ class Session(object):
         for oid in oids:
             oid = mkoid(oid)
             lib.snmp_add_null_var(req, oid, len(oid))
-        send_status = lib.snmp_send(self.sess, req)
+        send_status = self._snmp_send(self.sess, req)
         self._handle_send_status(req, send_status, "get")
         return req.contents.reqid
 
@@ -941,10 +1007,14 @@ class Session(object):
         req = self._create_request(SNMP_MSG_GETNEXT)
         oid = mkoid(root)
         lib.snmp_add_null_var(req, oid, len(oid))
-        send_status = lib.snmp_send(self.sess, req)
+        send_status = self._snmp_send(self.sess, req)
         self._log.debug("walk: send_status=%s", send_status)
         self._handle_send_status(req, send_status, "walk")
         return req.contents.reqid
+
+
+def _escape_char(char, text):
+    return text.replace(char, r"\{}".format(char))
 
 
 MAXFD = 1024
@@ -969,6 +1039,7 @@ def fdset2list(rd, n):
                     result.append(i * 32 + j)
     return result
 
+
 class netsnmp_large_fd_set(Structure):
     # This structure must be initialized by calling netsnmp_large_fd_set_init()
     # and must be cleaned up via netsnmp_large_fd_set_cleanup(). If this last
@@ -977,7 +1048,7 @@ class netsnmp_large_fd_set(Structure):
     _fields_ = [
         ("lfs_setsize", c_uint),
         ("lfs_setptr", POINTER(fdset)),
-        ("lfs_set", fdset)
+        ("lfs_set", fdset),
     ]
 
 
@@ -995,6 +1066,7 @@ def snmp_select_info():
         t = timeout.tv_sec + timeout.tv_usec / 1e6
     return fdset2list(rd, maxfd.value), t
 
+
 def snmp_select_info2():
     rd = netsnmp_large_fd_set()
     lib.netsnmp_large_fd_set_init(byref(rd), FD_SETSIZE)
@@ -1004,7 +1076,9 @@ def snmp_select_info2():
     timeout.tv_usec = 0
     block = c_int(0)
     maxfd = c_int(MAXFD)
-    lib.snmp_select_info2(byref(maxfd), byref(rd), byref(timeout), byref(block))
+    lib.snmp_select_info2(
+        byref(maxfd), byref(rd), byref(timeout), byref(block)
+    )
     t = None
     if not block:
         t = timeout.tv_sec + timeout.tv_usec / 1e6
@@ -1017,10 +1091,12 @@ def snmp_select_info2():
     lib.netsnmp_large_fd_set_cleanup(byref(rd))
     return result, t
 
+
 def snmp_read(fd):
     rd = fdset()
     rd[fd / 32] |= 1 << (fd % 32)
     lib.snmp_read(byref(rd))
+
 
 def snmp_read2(fd):
     rd = netsnmp_large_fd_set()
@@ -1028,6 +1104,7 @@ def snmp_read2(fd):
     lib.netsnmp_large_fd_setfd(fd, byref(rd))
     lib.snmp_read2(byref(rd))
     lib.netsnmp_large_fd_set_cleanup(byref(rd))
+
 
 done = False
 

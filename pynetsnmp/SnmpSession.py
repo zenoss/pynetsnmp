@@ -1,6 +1,6 @@
-from __future__ import absolute_import
-
 """Backwards compatible API for SnmpSession"""
+
+from __future__ import absolute_import
 
 from . import netsnmp
 
