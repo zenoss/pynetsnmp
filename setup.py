@@ -4,9 +4,9 @@ from setuptools import setup, find_packages
 
 setup(
     name="pynetsnmp",
-    version="0.43.1",
+    version="0.43.2",
     packages=find_packages(),
-    install_requires=["setuptools"],
+    install_requires=["setuptools", "six"],
     include_package_data=True,
     # metadata for upload to PyPI
     author="Zenoss",
