@@ -56,9 +56,9 @@ class TableRetriever(object):
             return
         results = {}
         for ts in self.tableStatus:
-            results[ts.startOidStr] = dict(
-                [(asOidStr(oid), value) for oid, value in ts.result]
-            )
+            results[ts.startOidStr] = {
+                asOidStr(oid): value for oid, value in ts.result
+            }
         self.defer.callback(results)
         self.defer = None
 
