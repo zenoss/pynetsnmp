@@ -3,6 +3,8 @@ from __future__ import absolute_import
 import logging
 import struct
 
+import six
+
 from twisted.internet import defer, reactor
 from twisted.internet.selectreactor import SelectReactor
 from twisted.internet.error import TimeoutError
@@ -310,7 +312,7 @@ class AgentProxy(object):
         else:
             error = SnmpUsmError("packet dropped")
 
-        for d in (d for d, _ in self.defers.itervalues() if not d.called):
+        for d in (d for d, _ in six.itervalues(self.defers) if not d.called):
             reactor.callLater(0, d.errback, failure.Failure(error))
 
     def _handle_timeout(self, reqid):

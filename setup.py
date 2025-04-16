@@ -6,7 +6,7 @@ setup(
     name="pynetsnmp",
     version="0.44.0",
     packages=find_packages(),
-    install_requires=["setuptools"],
+    install_requires=["setuptools", "six"],
     include_package_data=True,
     # metadata for upload to PyPI
     author="Zenoss",
