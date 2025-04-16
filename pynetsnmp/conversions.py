@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from ipaddr import IPAddress
+from ipaddress import ip_address
 
 
 def asOidStr(oid):
@@ -17,7 +17,7 @@ def asAgent(ip, port):
     """take a google ipaddr object and port number and produce a net-snmp
     agent specification (see the snmpcmd manpage)"""
     ip, interface = ip.split("%") if "%" in ip else (ip, None)
-    address = IPAddress(ip)
+    address = ip_address(ip)
 
     if address.version == 4:
         return "udp:{}:{}".format(address.compressed, port)
