@@ -36,8 +36,10 @@ class Privacy(object):
             and self.passphrase == other.passphrase
         )
 
-    def __nonzero__(self):
+    def __bool__(self):
         return self.protocol is not PRIV_NOPRIV
+
+    __nonzero__ = __bool__  # Python 2 compatibility
 
     def __repr__(self):
         return (

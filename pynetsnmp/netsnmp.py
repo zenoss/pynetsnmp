@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 import logging
 import os
@@ -32,7 +32,7 @@ from ctypes import (
     sizeof,
     string_at,
 )
-from ctypes.util import find_library
+from ctypes.util import find_library as _find_library
 
 from . import CONSTANTS
 from .CONSTANTS import (
@@ -88,14 +88,14 @@ from .CONSTANTS import (
     USM_PRIV_KU_LEN,
 )
 from .errors import ArgumentParseError, SnmpTimeoutError
+from ._version import Version
 
 
-def _getLogger(name):
+def getLogger(name):
     return logging.getLogger("zen.pynetsnmp.%s" % name)
 
 
 if sys.platform.find("free") > -1:
-    find_library_orig = find_library
 
     def find_library(name):
         for filename in [
@@ -104,23 +104,20 @@ if sys.platform.find("free") > -1:
         ]:
             if os.path.exists(filename):
                 return filename
-        return find_library_orig(name)
+        return _find_library(name)
+else:
 
-
-find_library_orig = find_library
-
-
-def find_library(name):
-    if sys.platform == "darwin":
-        libPath = os.environ.get("DYLD_LIBRARY_PATH", "")
-    else:
-        libPath = os.environ.get("LD_LIBRARY_PATH", "")
-    libPathList = libPath.split(":")
-    for path in libPathList:
-        pathName = path + "/lib%s.so" % name
-        if os.path.exists(pathName):
-            return pathName
-    return find_library_orig(name)
+    def find_library(name):
+        if sys.platform == "darwin":
+            libPath = os.environ.get("DYLD_LIBRARY_PATH", "")
+        else:
+            libPath = os.environ.get("LD_LIBRARY_PATH", "")
+        libPathList = libPath.split(":")
+        for path in libPathList:
+            pathName = path + "/lib%s.so" % name
+            if os.path.exists(pathName):
+                return pathName
+        return _find_library(name)
 
 
 oid = c_long
@@ -140,13 +137,17 @@ except Exception:
     warnings.warn("Unable to load crypto library", stacklevel=1)
 
 lib = CDLL(find_library("netsnmp"), RTLD_GLOBAL)
-lib.netsnmp_get_version.restype = c_char_p
 
-version = lib.netsnmp_get_version()
-float_version = float(".".join(version.split(".")[:2]))
-_netsnmp_str_version = tuple(str(v) for v in version.split("."))
 
-if float_version < 5.099:
+def _get_version(_lib):
+    _lib.netsnmp_get_version.restype = c_char_p
+    raw_version = _lib.netsnmp_get_version()
+    return Version.from_string(raw_version)
+
+
+version = _get_version(lib)
+
+if version < Version(5, 1):
     raise ImportError("netsnmp version 5.1 or greater is required")
 
 
@@ -211,15 +212,15 @@ fSetupSession = []
 identifier = []
 fGetTaddr = []
 
-if float_version > 5.199:
+if version > Version(5, 2):
     localname = [("localname", c_char_p)]
-    if float_version > 5.299:
+    if version > Version(5, 3):
         paramName = [("paramName", c_char_p)]
-if _netsnmp_str_version >= ("5", "6"):
+if version >= Version(5, 6):
     # Versions >= 5.6 and < 5.6.1.1 broke binary compatibility and changed
     # oid type from c_long to c_uint32. This works around the issue for these
     # platforms to allow things to work properly.
-    if _netsnmp_str_version <= ("5", "6", "1", "1"):
+    if version <= Version(5, 6, 1, 1):
         oid = c_uint32
 
     # Versions >= 5.6 broke binary compatibility by adding transport
@@ -230,7 +231,7 @@ if _netsnmp_str_version >= ("5", "6"):
     transportConfig = [
         ("transport_configuration", POINTER(netsnmp_container_s))
     ]
-if _netsnmp_str_version >= ("5", "8"):
+if version >= Version(5, 8):
     # Version >= 5.8 broke binary compatibility, adding the trap_stats
     # member to the netsnmp_session struct
     trapStats = [("trap_stats", POINTER(netsnmp_trap_stats))]
@@ -449,7 +450,7 @@ PRIORITY_MAP = {
 def netsnmp_logger(a, b, msg):
     msg = cast(msg, netsnmp_log_message_p)
     priority = PRIORITY_MAP.get(msg.contents.priority, logging.DEBUG)
-    _getLogger("libnetsnmp").log(priority, str(msg.contents.msg).strip())
+    getLogger("libnetsnmp").log(priority, str(msg.contents.msg).strip())
     return 0
 
 
@@ -570,7 +571,7 @@ def strToOid(oidStr):
 
 def decodeOid(pdu):
     return tuple(
-        [pdu.val.objid[i] for i in range(pdu.val_len / sizeof(u_long))]
+        [pdu.val.objid[i] for i in range(pdu.val_len // sizeof(u_long))]
     )
 
 
@@ -586,7 +587,7 @@ def decodeBigInt(pdu):
 def decodeString(pdu):
     if pdu.val_len:
         return string_at(pdu.val.bitstring, pdu.val_len)
-    return ""
+    return b""
 
 
 _valueToConstant = {
@@ -614,7 +615,7 @@ decoder = {
 
 
 def decodeType(var, log):
-    oid = [var.name[i] for i in range(var.name_length)]
+    oid = [str(var.name[i]) for i in range(var.name_length)]
     decode = decoder.get(var.type, None)
     if not decode:
         # raise UnknownType(oid, ord(var.type))
@@ -657,16 +658,16 @@ def _callback(operation, sp, reqid, pdu, magic):
         elif operation == NETSNMP_CALLBACK_OP_TIMED_OUT:
             sess.timeout(reqid)
         elif operation == NETSNMP_CALLBACK_OP_SEC_ERROR:
-            _getLogger("callback").error(
+            getLogger("callback").error(
                 "peer has rejected security credentials  "
                 "peername=%s security-name=%s",
                 sp.contents.peername,
                 sp.contents.securityName,
             )
         else:
-            _getLogger("callback").error("Unknown operation: %d", operation)
+            getLogger("callback").error("Unknown operation: %d", operation)
     except Exception as ex:
-        _getLogger("callback").exception("Exception in _callback %s", ex)
+        getLogger("callback").exception("Exception in _callback %s", ex)
     return 1
 
 
@@ -686,11 +687,11 @@ def parse_args(args, session):
     argv = (c_char_p * argc)()
     for i in range(argc):
         # snmp_parse_args mutates argv, so create a copy
-        argv[i] = create_string_buffer(args[i]).raw
+        argv[i] = create_string_buffer(args[i].encode("utf-8")).raw
     # WARNING: Usage of snmp_parse_args call causes memory leak.
-    if lib.snmp_parse_args(argc, argv, session, "", _doNothingProc) < 0:
+    if lib.snmp_parse_args(argc, argv, session, b"", _doNothingProc) < 0:
         raise ArgumentParseError(
-            "Unable to parse arguments  arguments='{}'".format(" ".join(argv))
+            "Unable to parse arguments  arguments='{}'".format(b" ".join(argv))
         )
     # keep a reference to the args for as long as sess is alive
     return argv
@@ -764,7 +765,7 @@ class Session(object):
         self.sess = None
         self.args = None
         self._data = None  # ref to _CallbackData object
-        self._log = _getLogger("session")
+        self._log = getLogger("session")
 
     def _snmp_send(self, session, pdu):
         """
@@ -778,7 +779,6 @@ class Session(object):
 
         Note: This feature is not supported by RFC.
         """
-
         try:
             return lib.snmp_send(session, pdu)
         finally:
@@ -801,12 +801,12 @@ class Session(object):
     def awaitTraps(
         self, peername, fileno=-1, pre_parse_callback=None, debug=False
     ):
-        if float_version > 5.299:
+        if version > Version(5, 3):
             lib.netsnmp_ds_set_string(
-                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_APPTYPE, "pynetsnmp"
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_APPTYPE, b"pynetsnmp"
             )
         if debug:
-            lib.debug_register_tokens("snmp_parse")  # or "ALL" for everything
+            lib.debug_register_tokens(b"snmp_parse")  # or "ALL" for everything
             lib.snmp_set_do_debugging(1)
         lib.netsnmp_udp_ctor()
         marker = object()
@@ -819,9 +819,9 @@ class Session(object):
                 "Cannot find constructor function for UDP/IPv6 transport "
                 "domain object."
             )
-        lib.init_snmp("zenoss_app")
+        lib.init_snmp(b"zenoss_app")
         lib.setup_engineID(None, None)
-        transport = lib.netsnmp_tdomain_transport(peername, 1, "udp")
+        transport = lib.netsnmp_tdomain_transport(peername, 1, b"udp")
         if not transport:
             raise NetSnmpError(
                 "Unable to create transport {peername}".format(
@@ -876,7 +876,9 @@ class Session(object):
                                 _escape_char("'", user.priv.protocol.name),
                                 _escape_char("'", user.priv.passphrase),
                             )
-                lib.usm_parse_create_usmUser("createUser", line.strip())
+                lib.usm_parse_create_usmUser(
+                    "createUser", line.strip().encode("utf-8")
+                )
                 self._log.debug("create_users: created user: %s", user)
             except Exception as e:
                 self._log.debug(
@@ -907,15 +909,15 @@ class Session(object):
 
             # sysUpTime is mandatory on V2Traps.
             objid_sysuptime = mkoid((1, 3, 6, 1, 2, 1, 1, 3, 0))
-            uptime = "%ld" % lib.get_uptime()
+            uptime = b"%ld" % lib.get_uptime()
             lib.snmp_add_var(
-                pdu, objid_sysuptime, len(objid_sysuptime), "t", uptime
+                pdu, objid_sysuptime, len(objid_sysuptime), b"t", uptime
             )
 
         # snmpTrapOID is mandatory on V2Traps.
         objid_snmptrap = mkoid((1, 3, 6, 1, 6, 3, 1, 1, 4, 1, 0))
         lib.snmp_add_var(
-            pdu, objid_snmptrap, len(objid_snmptrap), "o", trapoid
+            pdu, objid_snmptrap, len(objid_snmptrap), b"o", trapoid
         )
 
         if varbinds:
@@ -1019,7 +1021,7 @@ def _escape_char(char, text):
 
 MAXFD = 1024
 FD_SETSIZE = MAXFD
-fdset = c_int32 * (MAXFD / 32)
+fdset = c_int32 * (MAXFD // 32)
 
 
 class timeval(Structure):
@@ -1063,7 +1065,7 @@ def snmp_select_info():
     lib.snmp_select_info(byref(maxfd), byref(rd), byref(timeout), byref(block))
     t = None
     if not block:
-        t = timeout.tv_sec + timeout.tv_usec / 1e6
+        t = timeout.tv_sec + timeout.tv_usec // 1e6
     return fdset2list(rd, maxfd.value), t
 
 
@@ -1081,7 +1083,7 @@ def snmp_select_info2():
     )
     t = None
     if not block:
-        t = timeout.tv_sec + timeout.tv_usec / 1e6
+        t = timeout.tv_sec + timeout.tv_usec // 1e6
 
     result = []
     for fd in range(0, maxfd.value + 1):
@@ -1094,7 +1096,7 @@ def snmp_select_info2():
 
 def snmp_read(fd):
     rd = fdset()
-    rd[fd / 32] |= 1 << (fd % 32)
+    rd[fd // 32] |= 1 << (fd % 32)
     lib.snmp_read(byref(rd))
 
 

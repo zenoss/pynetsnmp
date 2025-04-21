@@ -36,7 +36,7 @@ from .conversions import asAgent, asOidStr, asOid
 from .errors import SnmpError, SnmpUsmError, get_stats_error
 from .tableretriever import TableRetriever
 
-log = netsnmp._getLogger("agentproxy")
+log = netsnmp.getLogger("agentproxy")
 
 
 class Timer(object):

@@ -45,50 +45,50 @@ class OID(object):
 _base_status_oid = (1, 3, 6, 1, 6, 3, 15, 1, 1)
 
 
-class UnknownSecurityLevel(OID):
+class _UnknownSecurityLevel(OID):
     __slots__ = ()
 
 
-UnknownSecurityLevel = UnknownSecurityLevel(_base_status_oid + (1, 0))
+UnknownSecurityLevel = _UnknownSecurityLevel(_base_status_oid + (1, 0))
 
 
-class NotInTimeWindow(OID):
+class _NotInTimeWindow(OID):
     __slots__ = ()
 
 
-NotInTimeWindow = NotInTimeWindow(_base_status_oid + (2, 0))
+NotInTimeWindow = _NotInTimeWindow(_base_status_oid + (2, 0))
 
 
-class UnknownUserName(OID):
+class _UnknownUserName(OID):
     __slots__ = ()
 
 
-UnknownUserName = UnknownUserName(_base_status_oid + (3, 0))
+UnknownUserName = _UnknownUserName(_base_status_oid + (3, 0))
 
 
-class UnknownEngineId(OID):
+class _UnknownEngineId(OID):
     __slots__ = ()
 
 
-UnknownEngineId = UnknownEngineId(_base_status_oid + (4, 0))
+UnknownEngineId = _UnknownEngineId(_base_status_oid + (4, 0))
 
 
-class WrongDigest(OID):
+class _WrongDigest(OID):
     __slots__ = ()
 
 
-WrongDigest = WrongDigest(_base_status_oid + (5, 0))
+WrongDigest = _WrongDigest(_base_status_oid + (5, 0))
 
 
-class DecryptionError(OID):
+class _DecryptionError(OID):
     __slots__ = ()
 
 
-DecryptionError = DecryptionError(_base_status_oid + (6, 0))
+DecryptionError = _DecryptionError(_base_status_oid + (6, 0))
 
 
-class SysDescr(OID):
+class _SysDescr(OID):
     __slots__ = ()
 
 
-SysDescr = SysDescr((1, 3, 6, 1, 2, 1, 1, 1, 0))
+SysDescr = _SysDescr((1, 3, 6, 1, 2, 1, 1, 1, 0))

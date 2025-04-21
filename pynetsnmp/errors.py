@@ -15,11 +15,6 @@ class TransportError(Exception):
     pass
 
 
-class SnmpNameError(Exception):
-    def __init__(self, oid):
-        Exception.__init__(self, "Bad Name", oid)
-
-
 class SnmpError(Exception):
     def __init__(self, message, *args, **kwargs):
         self.message = message
@@ -31,6 +26,11 @@ class SnmpError(Exception):
         return self.message
 
 
+class SnmpNameError(SnmpError):
+    def __init__(self, oid):
+        super(SnmpNameError, self).__init__("bad name: {}".format(oid))
+
+
 class SnmpUsmError(SnmpError):
     pass
 
@@ -39,6 +39,10 @@ class SnmpUsmStatsError(SnmpUsmError):
     def __init__(self, mesg, oid):
         super(SnmpUsmStatsError, self).__init__(mesg)
         self.oid = oid
+
+
+def get_stats_error(oid):
+    return _stats_oid_error_map.get(oid)
 
 
 _stats_oid_error_map = {
@@ -55,7 +59,3 @@ _stats_oid_error_map = {
         "privacy decryption error", oids.DecryptionError
     ),
 }
-
-
-def get_stats_error(oid):
-    return _stats_oid_error_map.get(oid)
