@@ -2,6 +2,14 @@ from __future__ import absolute_import
 
 from ipaddress import ip_address
 
+try:
+    _ = unicode
+
+    def _ip_from_text(ip):
+        return ip_address(unicode(ip))  # noqa: F821
+except NameError:
+    _ip_from_text = ip_address
+
 
 def asOidStr(oid):
     """converts an oid int sequence to an oid string"""
@@ -17,7 +25,7 @@ def asAgent(ip, port):
     """take a google ipaddr object and port number and produce a net-snmp
     agent specification (see the snmpcmd manpage)"""
     ip, interface = ip.split("%") if "%" in ip else (ip, None)
-    address = ip_address(ip)
+    address = _ip_from_text(ip)
 
     if address.version == 4:
         return "udp:{}:{}".format(address.compressed, port)
